@@ -9,9 +9,24 @@ from backend.media import MediaLibrary
 from backend.photos import PhotoService
 
 BASE_DIR = Path(__file__).resolve().parent
-STORAGE_DIR = Path(os.environ.get('FILEY_STORAGE_DIR', '/run/media/heli9x/FS-STORAGE'))
-if not STORAGE_DIR.is_dir():
-    STORAGE_DIR = BASE_DIR / 'backend-data'
+
+preferred_storage = Path(os.environ.get('FILEY_STORAGE_DIR', '')).expanduser()
+
+candidate_dirs = []
+if preferred_storage != Path(''):
+    candidate_dirs.append(preferred_storage)
+for raw in [
+    '/run/media/heli9x/FS-STORAGE',
+    '/run/media/heli9x',
+    '/mnt/data',
+    '/mnt',
+    '/media/heli9x',
+    '/media',
+    str(BASE_DIR / 'backend-data'),
+]:
+    candidate_dirs.append(Path(raw))
+
+STORAGE_DIR = next((path for path in candidate_dirs if path.is_dir()), BASE_DIR / 'backend-data')
 
 from backend.hls_project26 import HlsManager, placeholder_manifest
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path='')
@@ -24,7 +39,31 @@ cleanup = CleanupService(media, photos, hls)
 
 @app.get('/')
 def index():
-    return send_from_directory(BASE_DIR, 'index.html')
+    index_path = BASE_DIR / 'index.html'
+    if index_path.exists():
+        return send_from_directory(BASE_DIR, 'index.html')
+    return jsonify({'status': 'ok', 'service': 'Filey'}), 200
+
+
+@app.get('/api/health')
+def health():
+    return jsonify({
+        'status': 'ok',
+        'service': 'Filey',
+        'storage_dir': str(STORAGE_DIR),
+        'api_version': '1.0',
+    })
+
+
+@app.get('/api/discovery')
+def discovery():
+    return jsonify({
+        'name': 'Filey',
+        'service': 'Filey',
+        'api_version': '1.0',
+        'root': '/',
+        'files_path': '/api/files',
+    })
 
 
 @app.get('/api/files')
@@ -157,6 +196,12 @@ def cancel_all_hls():
         else:
             hls.cancel(key)
     return jsonify({'success': True, 'stopped': len(keys)})
+
+
+@app.post('/api/hls/clear')
+def clear_hls_cache():
+    hls.clear_cache()
+    return jsonify({'success': True, 'cleared': True})
 
 
 @app.get('/api/hls/<file_id>/stream.m3u8')

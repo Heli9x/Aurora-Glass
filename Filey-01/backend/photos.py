@@ -51,6 +51,8 @@ class PhotoService:
                 if result.returncode != 0:
                     raise RuntimeError(result.stderr.decode(errors='replace')[-500:])
                 os.replace(temporary, destination)
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError('thumbnail generation timed out') from error
             finally:
                 temporary.unlink(missing_ok=True)
         return destination

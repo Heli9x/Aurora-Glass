@@ -248,9 +248,12 @@ $('#view-button').addEventListener('click', () => { state.listView = !state.list
 $('#upload-button').addEventListener('click', () => { $('#upload-modal').hidden = false; });
 $('#clean-button').addEventListener('click', async () => {
     try {
-        const response = await fetch(`${API_BASE}/clean`, { method: 'POST' });
-        const result = await response.json();
-        notify(result.success ? 'Library cleanup complete' : 'Library cleanup failed');
+        const [cleanupResponse, cacheResponse] = await Promise.all([
+            fetch(`${API_BASE}/clean`, { method: 'POST' }),
+            fetch(`${API_BASE}/hls/clear`, { method: 'POST' })
+        ]);
+        const result = await cleanupResponse.json();
+        notify(result.success && cacheResponse.ok ? 'Library and HLS cache cleared' : 'Cleanup failed');
     } catch {
         notify('Local library cleanup complete');
     }

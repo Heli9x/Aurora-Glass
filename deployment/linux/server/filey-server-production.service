@@ -1,0 +1,27 @@
+[Unit]
+Description=Filey production media server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=filey
+Group=filey
+WorkingDirectory=__FILEY_INSTALL_DIR__
+EnvironmentFile=-/etc/filey/filey.env
+Environment=FILEY_STORAGE_DIR=__FILEY_STORAGE_DIR__
+Environment=FILEY_PORT=9100
+ExecStart=__FILEY_INSTALL_DIR__/.venv/bin/gunicorn server:app --worker-class gthread --workers 1 --threads 8 --bind __FILEY_BIND__ --timeout 0 --graceful-timeout 30 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=__FILEY_STORAGE_DIR__ __FILEY_INSTALL_DIR__/backend-data
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

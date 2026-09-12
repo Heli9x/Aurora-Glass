@@ -16,10 +16,10 @@ The original project remains at `../Filey-01` and is not edited by these deploym
 
 ```bash
 cd deployment/linux/server
-./install.sh
+FILEY_STORAGE_DIR=/run/media/heli9x/FS-STORAGE FILEY_BIND=0.0.0.0:9100 ./install.sh
 ```
 
-The installer expects the source project at `../../Filey-01` relative to this directory. It installs Python dependencies, FFmpeg, and a systemd service. Configure `FILEY_STORAGE_DIR` before starting the service.
+The installer expects the source project at `../../Filey-01` relative to this directory. It installs Python dependencies, FFmpeg, Gunicorn, a dedicated `filey` service user, and a hardened systemd service. See `linux/server/PRODUCTION.md` for Nginx and operations guidance.
 
 ## Android status
 
