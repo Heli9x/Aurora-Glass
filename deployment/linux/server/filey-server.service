@@ -1,0 +1,16 @@
+[Unit]
+Description=Filey media server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__FILEY_INSTALL_DIR__
+ExecStart=__FILEY_INSTALL_DIR__/.venv/bin/python __FILEY_INSTALL_DIR__/server.py
+Environment=FILEY_STORAGE_DIR=__FILEY_STORAGE_DIR__
+Environment=FILEY_PORT=9100
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

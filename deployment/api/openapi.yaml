@@ -1,0 +1,61 @@
+openapi: 3.0.3
+info:
+  title: Filey API
+  version: '1.0'
+  description: Shared API contract for Linux and Android Filey servers.
+servers:
+  - url: http://localhost:9100
+paths:
+  /api/health:
+    get:
+      responses:
+        '200':
+          description: Server health and capabilities
+  /api/discovery:
+    get:
+      responses:
+        '200':
+          description: Server identity and API version
+  /api/files:
+    get:
+      responses:
+        '200':
+          description: File records
+  /api/upload:
+    post:
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                name: { type: string }
+                category: { type: string }
+                icon: { type: string }
+      responses:
+        '201': { description: File created }
+  /api/files/{uuid}/stream:
+    get:
+      parameters: [{ name: uuid, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Native stream }
+  /api/hls/{uuid}/stream.m3u8:
+    get:
+      parameters: [{ name: uuid, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: On-demand HLS playlist }
+  /api/hls_status/{uuid}:
+    get:
+      parameters: [{ name: uuid, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: HLS conversion state }
+  /api/hls/{uuid}/{action}:
+    post:
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string } }
+        - { name: action, in: path, required: true, schema: { type: string, enum: [pause, resume, cancel] } }
+      responses:
+        '200': { description: HLS process control result }
