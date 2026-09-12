@@ -1,0 +1,40 @@
+.nav-links{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-link{
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 15px;
+    gap: 5px;
+    text-decoration: none;
+    color: var(--secondary-color);
+    font-size: 16px;
+    border-radius: 25px;
+    min-width: 40px;
+    width: auto;
+    transition: 0.5s ease;
+}
+
+.nav-link span{
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: 0.5s ease;
+}
+
+.nav-link:hover, .nav-link.active{
+    color: var(--primary-color);
+    background-color: var(--secondary-color);
+}
+
+.nav-link.active span, .nav-link:hover span{
+    display: inline-block;
+    opacity: 1;
+    max-width: 10em;
+    transition: 1s ease;
+}

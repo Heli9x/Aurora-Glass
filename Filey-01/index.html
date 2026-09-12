@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filey</title>
+    <link rel="stylesheet" href="vendor/remixicon/remixicon.css">
+    <link rel="stylesheet" href="index.css">
+    <script src="vendor/hls/hls.min.js"></script>
+    <script src="index.js" defer></script>
+</head>
+<body>
+    <main class="app-shell">
+        <header class="topbar" aria-label="Filey navigation">
+            <a class="brand" href="#home" aria-label="Filey home">
+                <span class="brand-mark" aria-hidden="true"><i class="ri-folder-6-fill"></i></span>
+                <span>Filey</span>
+            </a>
+            <nav id="navbar" class="nav-slot" aria-label="Library sections"></nav>
+            <div class="top-actions">
+                <button class="icon-button" id="upload-button" type="button" aria-label="Upload file" title="Upload file"><i class="ri-upload-cloud-2-line"></i></button>
+                <button class="icon-button" id="clean-button" type="button" aria-label="Clean library" title="Clean library"><i class="ri-brush-3-fill"></i></button>
+                <button class="icon-button danger-action" id="stop-hls-button" type="button" aria-label="Stop all conversions" title="Stop all HLS conversions"><i class="ri-stop-circle-line"></i></button>
+            </div>
+        </header>
+
+        <section class="workspace" aria-labelledby="page-title">
+            <div class="workspace-heading">
+                <div>
+                    <p class="eyebrow">Personal library</p>
+                    <h1 id="page-title">Home</h1>
+                </div>
+                <div class="heading-actions">
+                    <label class="sort-control" for="sort-select"><i class="ri-sort-desc"></i><select id="sort-select" aria-label="Sort files"><option value="default">Recent</option><option value="oldest">Oldest</option><option value="name_asc">Name A-Z</option><option value="name_desc">Name Z-A</option><option value="size_desc">Largest</option><option value="size_asc">Smallest</option><option value="type">Media type</option></select></label>
+                    <button class="view-button" id="view-button" type="button" aria-label="Switch view" title="Switch view"><i class="ri-layout-grid-line"></i></button>
+                </div>
+            </div>
+            <div class="library-grid" id="library-grid" aria-label="Your files"></div>
+            <div class="empty-state" id="empty-state" hidden>
+                <i class="ri-folder-open-line"></i>
+                <p>Your library is empty</p>
+            </div>
+        </section>
+        <div class="modal-backdrop" id="upload-modal" hidden>
+            <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+                <button class="dialog-close" type="button" data-close-modal aria-label="Close upload dialog"><i class="ri-close-line"></i></button>
+                <p class="eyebrow">Library action</p>
+                <h2 id="upload-title">Upload a file</h2>
+                <label class="drop-zone" for="file-input"><i class="ri-upload-cloud-2-line"></i><span>Choose a file to add to your library</span><small>Files are stored on the connected Filey volume</small></label>
+                <input id="file-input" type="file" hidden>
+                <form id="upload-form" class="upload-form">
+                    <label>Custom name<input id="custom-name" name="custom-name" type="text" placeholder="Use original filename"></label>
+                    <label>Category<select id="file-category" name="file-category"><option value="auto">Detect automatically</option><option value="movies">Movies</option><option value="music">Music</option><option value="photos">Photos</option><option value="other">Other</option></select></label>
+                    <fieldset class="icon-picker"><legend>Custom icon</legend><label><input type="radio" name="file-icon" value="ri-file-3-line" checked><i class="ri-file-3-line"></i></label><label><input type="radio" name="file-icon" value="ri-play-fill"><i class="ri-play-fill"></i></label><label><input type="radio" name="file-icon" value="ri-music-2-fill"><i class="ri-music-2-fill"></i></label><label><input type="radio" name="file-icon" value="ri-image-2-line"><i class="ri-image-2-line"></i></label><label><input type="radio" name="file-icon" value="ri-folder-6-fill"><i class="ri-folder-6-fill"></i></label></fieldset>
+                    <div class="upload-progress" id="upload-progress" hidden><div class="upload-progress-track"><span id="upload-progress-bar"></span></div><div class="upload-progress-meta"><span id="upload-progress-label">Ready</span><span id="upload-progress-percent">0%</span></div></div>
+                    <button class="submit-button" type="submit"><i class="ri-upload-2-line"></i> Add to library</button>
+                </form>
+            </section>
+        </div>
+        <div class="modal-backdrop" id="media-modal" hidden>
+            <section class="dialog media-dialog" role="dialog" aria-modal="true" aria-labelledby="media-title">
+                <button class="dialog-close" type="button" data-close-modal aria-label="Close media preview"><i class="ri-close-line"></i></button>
+                <div class="media-preview" id="media-preview"></div>
+                <div class="player-actions" aria-label="Playback controls">
+                    <button id="player-toggle" type="button" aria-label="Play" title="Play"><i class="ri-play-fill"></i></button>
+                    <button id="mute-toggle" type="button" aria-label="Unmute" title="Unmute"><i class="ri-volume-mute-line"></i></button>
+                </div>
+                <h2 id="media-title">Preview</h2>
+                <p id="media-meta"></p>
+            </section>
+        </div>
+        <div class="context-menu" id="context-menu" hidden aria-label="File actions"></div>
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+</body>
+</html>

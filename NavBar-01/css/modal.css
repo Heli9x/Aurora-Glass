@@ -1,0 +1,27 @@
+.modal-wrapper{
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 100px;
+    max-width: 300px;
+    padding: 10px;
+    background-color: var(--secondary-color);
+    color: var(--primary-color);
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    display: none;
+    z-index: 1000;
+}
+
+.nav-info-modal {
+    position: absolute;
+    display: none;
+    padding: 10px 15px;
+    background-color: var(--primary-color);
+    color: var(--secondary-color);
+    border-radius: 5px;
+    z-index: 1000;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}

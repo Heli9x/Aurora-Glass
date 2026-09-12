@@ -1,0 +1,22 @@
+.nav-actions{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-actions .nav-action-button{
+    display: flex;
+    align-items: center;
+    border: none;
+    min-height: 40px;
+    padding: 0 15px;
+    gap: 5px;
+    text-decoration: none;
+    color: var(--secondary-color);
+    font-size: 16px;
+    border-radius: 25px;
+    min-width: 40px;
+    width: auto;
+    transition: 0.5s ease;
+    cursor: pointer;
+}
