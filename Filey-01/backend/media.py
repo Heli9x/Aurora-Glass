@@ -15,6 +15,8 @@ class MediaLibrary:
     def __init__(self, storage_root):
         self.storage_root = Path(storage_root)
         self.source_dir = self.storage_root / 'storage'
+        self._scanned = None
+        self._sorted_cache = {}
         self.ensure_storage()
 
     def ensure_storage(self):
@@ -36,6 +38,8 @@ class MediaLibrary:
         return self._source_path(record)
 
     def read_files(self):
+        if self._scanned is not None:
+            return list(self._scanned)
         self.ensure_storage()
         files = []
         for media_type in sorted(self.ALLOWED_TYPES):
@@ -56,13 +60,26 @@ class MediaLibrary:
                     'size': self.format_size(source.stat().st_size) if source.is_file() else '',
                     'sizeBytes': source.stat().st_size if source.is_file() else 0,
                     'timeAdded': data.get('time_added', ''),
-                    'action': 'View' if file_type == 'photos' else 'Play',
+                    'action': 'View' if file_type == 'photos' else 'Play' if file_type in {'movies', 'music'} else 'Open',
                     'mimeType': mimetypes.guess_type(data.get('file_name', ''))[0] or 'application/octet-stream',
                     'path': data.get('path', ''),
                     'pointerPath': str(pointer_path),
                     'exists': source.is_file(),
                 })
-        return files
+        self._scanned = files
+        return list(self._scanned)
+
+    def read_sorted(self, media_type=None, sort='default'):
+        """Return records filtered by media_type (None = all), sorted and cached per (type, sort)."""
+        key = (media_type or '', sort)
+        if key not in self._sorted_cache:
+            records = self.read_files() if not media_type else [r for r in self.read_files() if r['type'] == media_type]
+            self._sorted_cache[key] = self.sort_records(records, sort)
+        return list(self._sorted_cache[key])
+
+    def _invalidate(self):
+        self._scanned = None
+        self._sorted_cache = {}
 
     def find(self, file_id):
         return next((item for item in self.read_files() if item['id'] == file_id), None)
@@ -92,6 +109,31 @@ class MediaLibrary:
     def default_icon(file_type):
         return {'movies': 'ri-play-fill', 'music': 'ri-music-2-fill', 'photos': 'ri-image-2-line'}.get(file_type, 'ri-file-3-line')
 
+    @staticmethod
+    def sort_records(records, mode='default'):
+        ordered = list(records)
+        if mode == 'oldest':
+            ordered.sort(key=lambda r: r.get('timeAdded') or '')
+        elif mode == 'name_asc':
+            ordered.sort(key=lambda r: r.get('name') or '')
+        elif mode == 'name_desc':
+            ordered.sort(key=lambda r: r.get('name') or '', reverse=True)
+        elif mode == 'size_asc':
+            ordered.sort(key=lambda r: r.get('sizeBytes') or 0)
+        elif mode == 'size_desc':
+            ordered.sort(key=lambda r: r.get('sizeBytes') or 0, reverse=True)
+        elif mode == 'type':
+            ordered.sort(key=lambda r: (r.get('type') or '', r.get('name') or ''))
+        else:
+            ordered.sort(key=lambda r: r.get('timeAdded') or '', reverse=True)
+        return ordered
+
+    @staticmethod
+    def paginate(records, page=1, per_page=24):
+        total = len(records)
+        start = max(0, (max(1, page) - 1) * max(1, per_page))
+        return records[start:start + per_page], total
+
     def add_upload(self, uploaded, display_name='', file_type='', icon=''):
         if uploaded is None or not uploaded.filename:
             raise ValueError('file is required')
@@ -118,6 +160,7 @@ class MediaLibrary:
             'icon': icon or self.default_icon(file_type),
         }
         self._pointer_path(file_type, file_id).write_text(json.dumps(pointer, indent=2), encoding='utf-8')
+        self._invalidate()
         return self.find(file_id)
 
     def update(self, file_id, payload):
@@ -137,6 +180,7 @@ class MediaLibrary:
             pointer_path.unlink(missing_ok=True)
         else:
             pointer_path.write_text(json.dumps(pointer, indent=2), encoding='utf-8')
+        self._invalidate()
         return self.find(file_id)
 
     def delete(self, file_id):
@@ -145,6 +189,7 @@ class MediaLibrary:
             return False
         self._source_path(record).unlink(missing_ok=True)
         Path(record['pointerPath']).unlink(missing_ok=True)
+        self._invalidate()
         return True
 
     def clean_missing(self):
@@ -153,6 +198,8 @@ class MediaLibrary:
             if not record['exists']:
                 Path(record['pointerPath']).unlink(missing_ok=True)
                 removed += 1
+        if removed:
+            self._invalidate()
         return removed
 
     @staticmethod

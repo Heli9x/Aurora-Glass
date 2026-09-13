@@ -1,0 +1,5 @@
+Filey-01.7z
+**/__pycache__/
+*.py[cod]
+.venv/
+Filey-01/.filey-config.json

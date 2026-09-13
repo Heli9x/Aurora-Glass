@@ -6,10 +6,10 @@ The production service uses Gunicorn, not Flask's development server. It intenti
 
 ```bash
 cd deployment/linux/server
-FILEY_STORAGE_DIR=/run/media/heli9x/FS-STORAGE ./install.sh
+FILEY_STORAGE_DIR=/mnt/media ./install.sh
 ```
 
-The installer installs Python, FFmpeg, Gunicorn, copies the unchanged Filey-01 source into `/opt/filey`, and enables `filey-server.service`.
+The installer installs Python, FFmpeg, `rsync`, Gunicorn, copies the unchanged Filey-01 source into `/opt/filey`, and enables `filey-server.service`.
 
 ## Operations
 

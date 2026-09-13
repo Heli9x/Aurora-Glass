@@ -1,0 +1,15 @@
+.nav-info-modal {
+    position: fixed;
+    z-index: 1000;
+    display: none;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(17, 17, 17, .94);
+    color: var(--ink);
+    font-size: 13px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.3);
+    pointer-events: none;
+}
+
+.nav-info-modal small { display: block; color: var(--muted); font-size: 11px; }

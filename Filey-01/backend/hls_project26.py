@@ -319,6 +319,20 @@ class HlsManager:
         except OSError:
             return False
 
+    def wait_for_playlist_ready(self, cache_dir, timeout=3.0):
+        """Wait briefly for the first segment to appear while ffmpeg is warming up."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                for name in os.listdir(cache_dir):
+                    lower = name.lower()
+                    if lower.startswith("stream_") and lower.endswith(".mp4"):
+                        return True
+            except OSError:
+                pass
+            time.sleep(0.2)
+        return False
+
     def _resume_point(self, cache_dir, playlist):
         """Return seconds to resume from, 0 meaning start over.
 

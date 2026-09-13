@@ -1,0 +1,35 @@
+.media-dialog { text-align: center; }
+
+.media-preview {
+    display: grid;
+    place-items: center;
+    min-height: 180px;
+    margin-bottom: 20px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--ink);
+    background: var(--soft);
+}
+.media-preview i { display: block; margin-bottom: 8px; font-size: 58px; }
+.media-preview span { display: block; color: var(--muted); }
+.media-preview img, .media-preview video { display: block; width: 100%; max-width: 100%; max-height: 420px; border-radius: 8px; }
+.media-preview audio { width: min(100%, 560px); }
+
+.photo-dialog .media-preview { width: fit-content; max-width: 100%; min-height: 0; margin: 0 auto 20px; }
+.photo-dialog .media-preview img { width: auto; height: auto; max-width: 100%; max-height: min(70vh, 680px); object-fit: contain; }
+
+#media-meta { color: var(--muted); }
+
+.player-actions { display: flex; justify-content: center; gap: 10px; margin: -8px 0 16px; }
+.player-actions button {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: var(--ink);
+    background: var(--soft);
+    cursor: pointer;
+}
+.player-actions button:hover { color: #111; background: #fff; }

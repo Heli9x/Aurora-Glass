@@ -1,32 +1,43 @@
 import os
+import shutil
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 
+from backend import config as app_config
 from backend.cleanup import CleanupService
 from backend.media import MediaLibrary
 from backend.photos import PhotoService
 
 BASE_DIR = Path(__file__).resolve().parent
+fallback_storage = BASE_DIR / 'backend-data'
 
-preferred_storage = Path(os.environ.get('FILEY_STORAGE_DIR', '')).expanduser()
+preferred_storage = os.environ.get('FILEY_STORAGE_DIR', '')
 
-candidate_dirs = []
-if preferred_storage != Path(''):
-    candidate_dirs.append(preferred_storage)
-for raw in [
-    '/run/media/heli9x/FS-STORAGE',
-    '/run/media/heli9x',
-    '/mnt/data',
-    '/mnt',
-    '/media/heli9x',
-    '/media',
-    str(BASE_DIR / 'backend-data'),
-]:
-    candidate_dirs.append(Path(raw))
 
-STORAGE_DIR = next((path for path in candidate_dirs if path.is_dir()), BASE_DIR / 'backend-data')
+def resolve_storage_dir():
+    if preferred_storage and Path(preferred_storage).expanduser().is_dir():
+        return Path(preferred_storage).expanduser()
+    heads = [Path(preferred_storage).expanduser()] if preferred_storage else []
+    for raw in [
+        '/run/media',
+        '/mnt/data',
+        '/mnt',
+        '/media',
+    ]:
+        heads.append(Path(raw))
+    for head in heads:
+        if head.is_dir() and app_config.config_path(head).is_file():
+            return head
+    for head in heads:
+        if head.is_dir():
+            return head
+    return fallback_storage
+
+
+STORAGE_DIR = resolve_storage_dir()
+PLATFORM_NAME = app_config.load_config(STORAGE_DIR).get('platform_name') or app_config.DEFAULT_NAME
 
 from backend.hls_project26 import HlsManager, placeholder_manifest
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path='')
@@ -49,7 +60,8 @@ def index():
 def health():
     return jsonify({
         'status': 'ok',
-        'service': 'Filey',
+        'service': PLATFORM_NAME,
+        'platform_name': PLATFORM_NAME,
         'storage_dir': str(STORAGE_DIR),
         'api_version': '1.0',
     })
@@ -58,17 +70,101 @@ def health():
 @app.get('/api/discovery')
 def discovery():
     return jsonify({
-        'name': 'Filey',
-        'service': 'Filey',
+        'name': PLATFORM_NAME,
+        'service': PLATFORM_NAME,
+        'platform_name': PLATFORM_NAME,
         'api_version': '1.0',
         'root': '/',
         'files_path': '/api/files',
     })
 
 
+@app.get('/api/settings')
+def settings_get():
+    return jsonify({
+        'platform_name': PLATFORM_NAME,
+        'storage_dir': str(STORAGE_DIR),
+        'candidates': list(app_config.discover_storage_roots(extra=[preferred_storage] if preferred_storage else [])),
+    })
+
+
+@app.post('/api/settings')
+def settings_post():
+    global PLATFORM_NAME
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get('name') or '').strip() if 'name' in payload else None
+    if name is not None and (not name or len(name) > 40):
+        return jsonify({'error': 'Platform name must be 1-40 characters'}), 400
+    new_dir = str(payload.get('storage_dir') or '').strip() if 'storage_dir' in payload else None
+    if new_dir is not None:
+        ok, reason = app_config.validate_storage_dir(new_dir)
+        if not ok:
+            return jsonify({'error': reason}), 400
+    target = STORAGE_DIR
+    if new_dir is not None:
+        target = Path(new_dir).expanduser()
+    if name is None:
+        name = app_config.load_config(target).get('platform_name') or PLATFORM_NAME
+    app_config.save_config(target, platform_name=name, storage_dir=str(target))
+    if name != PLATFORM_NAME:
+        PLATFORM_NAME = name
+    requires_restart = new_dir is not None and Path(new_dir).expanduser() != STORAGE_DIR
+    return jsonify({
+        'applied': True,
+        'platform_name': name,
+        'storage_dir': str(target),
+        'requires_restart': requires_restart,
+    })
+
+
+@app.get('/api/stats')
+def stats():
+    records = media.read_sorted(None, 'default')
+    counts = {'movies': 0, 'music': 0, 'photos': 0, 'other': 0}
+    for record in records:
+        counts[record['type']] = counts.get(record['type'], 0) + 1
+
+    def dir_bytes(root):
+        total = 0
+        file_count = 0
+        if root.is_dir():
+            for item in root.rglob('*'):
+                if item.is_file():
+                    total += item.stat().st_size
+                    file_count += 1
+        return total, file_count
+
+    hls_bytes, hls_files = dir_bytes(media.storage_root / 'storage' / '_hls_filey01')
+    photo_bytes, _ = dir_bytes(media.storage_root / 'storage' / '_webp')
+    try:
+        usage = shutil.disk_usage(media.storage_root)
+        free, used, total = usage.free, usage.used, usage.total
+    except OSError:
+        free = used = total = 0
+    return jsonify({
+        'total': len(records),
+        'counts': counts,
+        'hls_cache': {'bytes': hls_bytes, 'files': hls_files},
+        'photo_cache': {'bytes': photo_bytes},
+        'storage': {'free': free, 'used': used, 'total': total},
+    })
+
+
 @app.get('/api/files')
 def list_files():
-    return jsonify({'files': [media.public_record(item) for item in media.read_files()]})
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        per_page = min(100, max(1, int(request.args.get('per_page', 24))))
+    except (TypeError, ValueError):
+        per_page = 24
+    sort = request.args.get('sort', 'default')
+    media_type = request.args.get('type') or None
+    records = [media.public_record(item) for item in media.read_sorted(media_type, sort)]
+    files, total = media.paginate(records, page, per_page)
+    return jsonify({'files': files, 'total': total, 'page': page, 'per_page': per_page})
 
 
 @app.post('/api/upload')
@@ -213,7 +309,11 @@ def hls_stream(file_id):
     if status == 'missing':
         return jsonify({'error': 'source file missing'}), 404
     if not os.path.isfile(playlist):
-        return placeholder_manifest()
+        cache_dir = hls._cache_dir(file_id)
+        if hls.wait_for_playlist_ready(cache_dir, timeout=3.0):
+            playlist = os.path.join(cache_dir, 'stream.m3u8')
+        else:
+            return placeholder_manifest()
     hls.touch(file_id)
     return send_file(playlist, mimetype='application/vnd.apple.mpegurl', max_age=0)
 
@@ -233,8 +333,16 @@ def hls_action_compat(file_id, action):
 
 @app.get('/api/hls/<file_id>/<path:segment>')
 def hls_segment_compat(file_id, segment):
+    cache_dir = hls._cache_dir(file_id)
+    segment_path = os.path.join(cache_dir, segment)
+    if not os.path.exists(segment_path):
+        deadline = time.monotonic() + 3.0
+        while not os.path.exists(segment_path) and time.monotonic() < deadline:
+            time.sleep(0.2)
+    if not os.path.exists(segment_path):
+        return jsonify({'error': 'segment not ready yet'}), 404
     hls.touch(file_id)
-    return send_from_directory(hls._cache_dir(file_id), segment, mimetype='video/mp4')
+    return send_from_directory(cache_dir, segment, mimetype='video/mp4')
 
 
 @app.get('/api/files/<file_id>/hls/stream.m3u8')
@@ -244,8 +352,16 @@ def hls_playlist(file_id):
 
 @app.get('/api/files/<file_id>/hls/<path:segment>')
 def hls_segment(file_id, segment):
+    cache_dir = hls._cache_dir(file_id)
+    segment_path = os.path.join(cache_dir, segment)
+    if not os.path.exists(segment_path):
+        deadline = time.monotonic() + 3.0
+        while not os.path.exists(segment_path) and time.monotonic() < deadline:
+            time.sleep(0.2)
+    if not os.path.exists(segment_path):
+        return jsonify({'error': 'segment not ready yet'}), 404
     hls.touch(file_id)
-    return send_from_directory(hls._cache_dir(file_id), segment, mimetype='video/mp4')
+    return send_from_directory(cache_dir, segment, mimetype='video/mp4')
 
 
 if __name__ == '__main__':

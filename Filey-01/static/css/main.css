@@ -1,0 +1,45 @@
+:root {
+    --ink: #fff;
+    --muted: rgba(255, 255, 255, .65);
+    --soft: rgba(255, 255, 255, 0.09);
+    --line: rgba(255, 255, 255, 0.2);
+    --glass: rgba(255, 255, 255, 0.1);
+    --deep: #111;
+    --accent: #fff;
+    --accent-dark: #111;
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; }
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    padding: clamp(14px, 3vw, 30px);
+    color: var(--ink);
+    font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+    background: #111;
+}
+button, a { font: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+
+.app-shell {
+    width: min(100%, 1120px);
+    min-height: calc(100vh - clamp(28px, 6vw, 60px));
+    margin: auto;
+    padding: clamp(20px, 4vw, 40px);
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, .05);
+    box-shadow: 0 28px 70px rgba(8, 14, 30, .3), inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+@media (max-width: 680px) {
+    body { padding: 10px; }
+    .app-shell { padding: 12px; border-radius: 16px; }
+}
+@media (max-width: 399px) {
+    body { padding: 6px; overflow-x: hidden; }
+    .app-shell { width: 100%; min-height: calc(100vh - 12px); padding: 8px; border-radius: 14px; }
+}

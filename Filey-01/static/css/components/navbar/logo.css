@@ -1,0 +1,28 @@
+.nav-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.nav-img {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    color: #fff;
+    font-size: 25px;
+    transform: rotate(-8deg);
+}
+
+.nav-brand {
+    font: 700 25px 'Trebuchet MS', 'Segoe UI', sans-serif;
+    letter-spacing: .02em;
+}
+
+@media (max-width: 399px) {
+    .nav-logo { gap: 8px; }
+    .nav-img { width: 28px; height: 28px; font-size: 21px; }
+    .nav-brand { font-size: 21px; }
+}

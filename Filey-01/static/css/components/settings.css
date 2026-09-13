@@ -1,0 +1,146 @@
+.settings {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 4px 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.gallery-content.list-view.full-width .settings { max-width: none; }
+
+.settings-card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--soft);
+    padding: 18px 18px 16px;
+}
+
+.settings-card h2 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--ink);
+}
+
+.settings-hint {
+    margin: 4px 0 12px;
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.settings-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.settings-row > label {
+    color: var(--ink);
+    font-size: 0.88rem;
+    min-width: 110px;
+}
+
+.settings-row input[type='text'] {
+    flex: 1 1 240px;
+    min-width: 200px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.settings-row input[type='text']:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.settings-btn {
+    padding: 9px 16px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--surface);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.settings-btn:hover {
+    filter: brightness(1.06);
+}
+
+.settings-storage-list {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.settings-radio {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 10px;
+    align-items: center;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    cursor: pointer;
+}
+
+.settings-radio input {
+    grid-row: 1 / span 2;
+    accent-color: var(--accent);
+}
+
+.settings-radio span {
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-family: monospace;
+}
+
+.settings-radio small {
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
+.settings-prefs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.settings-field span {
+    color: var(--ink);
+    font-size: 0.88rem;
+}
+
+.settings-field select {
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.settings-msg {
+    margin: 10px 0 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.settings-msg.error {
+    color: #e5484d;
+}
+
+.settings-storage-list .settings-radio:has(input:checked) {
+    border-color: var(--accent);
+}

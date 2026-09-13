@@ -1,0 +1,59 @@
+.rename-wrapper {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(0,0,0,.65);
+    backdrop-filter: blur(8px);
+}
+.rename-wrapper.hide { display: none; }
+
+.rename-content {
+    display: grid;
+    gap: 14px;
+    width: min(100%, 380px);
+    padding: 28px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(17,17,17,.94);
+    box-shadow: 0 24px 70px rgba(0,0,0,.4);
+}
+.rename-title { margin: 0; font-size: 22px; }
+.rename-content .input-wrapper { display: grid; gap: 6px; }
+.rename-content label { color: var(--muted); font-size: 12px; }
+.rename-input {
+    min-height: 40px;
+    padding: 0 11px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    outline: 0;
+    color: var(--ink);
+    background: var(--soft);
+    font-size: 14px;
+}
+.rename-input:focus { border-color: var(--ink); }
+.rename-hint { color: var(--muted); font-size: 11px; }
+
+.rename-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.rename-save {
+    min-height: 38px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 8px;
+    color: #111;
+    background: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+.rename-cancel {
+    min-height: 38px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    background: var(--soft);
+    cursor: pointer;
+}
+.rename-msg { min-height: 16px; color: #e08c8c; font-size: 12px; }

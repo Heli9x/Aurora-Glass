@@ -1,0 +1,73 @@
+.drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 38px 20px;
+    border: 1px dashed rgba(255,255,255,.4);
+    border-radius: 12px;
+    color: var(--ink);
+    text-align: center;
+    cursor: pointer;
+}
+.drop-zone:hover, .drop-zone.over { background: var(--soft); }
+.drop-zone.over { border-color: var(--ink); }
+.drop-zone i { font-size: 42px; }
+.drop-zone small { color: var(--muted); }
+
+.upload-form { display: grid; gap: 14px; margin-top: 18px; }
+.upload-form > label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+.upload-form input[type="text"], .upload-form select {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 11px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    outline: 0;
+    color: var(--ink);
+    background: var(--soft);
+}
+.upload-form select option { color: #111; background: #fff; }
+.upload-form input[type="text"]:focus, .upload-form select:focus { border-color: var(--ink); }
+
+.icon-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.icon-picker legend { width: 100%; margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+.icon-picker label {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    background: var(--soft);
+    cursor: pointer;
+}
+.icon-picker label:has(input:checked) { color: #111; background: #fff; }
+.icon-picker input { position: absolute; opacity: 0; }
+.icon-picker i { font-size: 19px; }
+
+.submit-button {
+    min-height: 42px;
+    border: 0;
+    border-radius: 9px;
+    color: #111;
+    background: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+.submit-button:hover { background: rgba(255,255,255,.75); }
+.submit-button:disabled { opacity: .6; cursor: default; }
+
+.upload-progress { display: grid; gap: 7px; }
+.upload-progress-track { height: 7px; overflow: hidden; border-radius: 5px; background: var(--soft); }
+.upload-progress-track span { display: block; width: 0; height: 100%; border-radius: inherit; background: #fff; transition: width .15s ease; }
+.upload-progress-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }

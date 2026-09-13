@@ -1,6 +1,6 @@
 # Debian Filey Server
 
-Run `install.sh` from this directory. It installs Python, FFmpeg, a virtual environment, and a systemd service. The source `Filey-01` directory is copied into `/opt/filey` by default; the original project remains unchanged.
+Run `install.sh` from this directory. It installs Python, FFmpeg, `rsync`, a virtual environment, and a systemd service. The source `Filey-01` directory is copied into `/opt/filey` by default; the original project remains unchanged.
 
 Override storage and install locations:
 
