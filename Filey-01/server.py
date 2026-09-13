@@ -17,9 +17,13 @@ preferred_storage = os.environ.get('FILEY_STORAGE_DIR', '')
 
 
 def resolve_storage_dir():
-    if preferred_storage and Path(preferred_storage).expanduser().is_dir():
-        return Path(preferred_storage).expanduser()
-    heads = [Path(preferred_storage).expanduser()] if preferred_storage else []
+    if preferred_storage:
+        preferred = Path(preferred_storage).expanduser()
+        if preferred.is_dir() and os.access(preferred, os.W_OK):
+            return preferred
+    heads = [app_config.default_storage_dir()]
+    if preferred_storage:
+        heads.append(Path(preferred_storage).expanduser())
     for raw in [
         '/run/media',
         '/mnt/data',
@@ -28,10 +32,11 @@ def resolve_storage_dir():
     ]:
         heads.append(Path(raw))
     for head in heads:
-        if head.is_dir() and app_config.config_path(head).is_file():
+        if (head.is_dir() and os.access(head, os.W_OK)
+                and app_config.config_path(head).is_file()):
             return head
     for head in heads:
-        if head.is_dir():
+        if head.is_dir() and os.access(head, os.W_OK):
             return head
     return fallback_storage
 
@@ -367,3 +372,4 @@ def hls_segment(file_id, segment):
 if __name__ == '__main__':
     port = int(os.environ.get('FILEY_PORT', '9100'))
     app.run(host='0.0.0.0', port=port, debug=False)
+ 

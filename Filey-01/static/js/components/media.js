@@ -1,7 +1,7 @@
 class MediaPlayer {
     constructor({ onDownload = null } = {}){
         this.onDownload = onDownload;
-        this.modal = new Modal('media-dialog');
+        this.modal = new Modal('media-dialog', () => this.stopPlayback());
         this.dialog = this.modal.dialog;
 
         this.preview = document.createElement('div');
@@ -52,6 +52,7 @@ class MediaPlayer {
             if (this.onDownload) this.onDownload(file);
             return;
         }
+        this.stopAll();
         const requestId = ++this.playbackRequest;
         this.activePlaybackFile = file;
         this.title.textContent = file.name;
@@ -159,6 +160,11 @@ class MediaPlayer {
 
     stopAll(){
         this.playbackRequest += 1;
+        const player = document.getElementById('active-player');
+        if (player){
+            try { player.pause(); } catch { /* jsdom/older browsers */ }
+            try { player.removeAttribute('src'); player.load(); } catch { /* jsdom/older browsers */ }
+        }
         this.activePlaybackFile = null;
         this.hlsConversionActive = false;
         if (this.activeHls){
@@ -167,13 +173,12 @@ class MediaPlayer {
         }
     }
 
-    close(){
+    stopPlayback(){
         if (this.activePlaybackFile?.id && this.hlsConversionActive){
             fetch(`${API_BASE}/hls/${this.activePlaybackFile.id}/cancel`, { method: 'POST' }).catch(() => {});
         }
         this.stopAll();
         this.dialog.classList.remove('photo-dialog');
         this.preview.replaceChildren();
-        this.modal.close();
     }
 }

@@ -66,7 +66,7 @@ The deployment installer prepares a Debian/Linux server with Python, FFmpeg, a v
 
 ```bash
 cd deployment/linux/server
-FILEY_STORAGE_DIR=/mnt/media FILEY_BIND=0.0.0.0:9100 ./install.sh
+FILEY_STORAGE_DIR=/run/media/$USER/FS-STORAGE FILEY_BIND=0.0.0.0:9100 ./install.sh
 ```
 
 Useful service commands:

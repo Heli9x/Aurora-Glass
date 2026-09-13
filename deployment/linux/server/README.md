@@ -5,7 +5,7 @@ Run `install.sh` from this directory. It installs Python, FFmpeg, `rsync`, a vir
 Override storage and install locations:
 
 ```bash
-FILEY_STORAGE_DIR=/mnt/media FILEY_INSTALL_DIR=/opt/filey ./install.sh
+FILEY_STORAGE_DIR=/run/media/$USER/FS-STORAGE FILEY_INSTALL_DIR=/opt/filey ./install.sh
 ```
 
 Useful commands:

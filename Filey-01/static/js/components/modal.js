@@ -1,5 +1,6 @@
 class Modal {
-    constructor(className = ''){
+    constructor(className = '', onClose = null){
+        this.onClose = onClose;
         this.backdrop = document.createElement('div');
         this.backdrop.className = 'modal-backdrop';
         this.backdrop.hidden = true;
@@ -38,6 +39,7 @@ class Modal {
 
     close(){
         this.backdrop.hidden = true;
+        if (typeof this.onClose === 'function') this.onClose();
     }
 
     isOpen(){

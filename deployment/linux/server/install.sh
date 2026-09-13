@@ -5,7 +5,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/../../.." && pwd)"
 SOURCE_DIR="$PROJECT_ROOT/Filey-01"
 INSTALL_DIR="${FILEY_INSTALL_DIR:-/opt/filey}"
-STORAGE_DIR="${FILEY_STORAGE_DIR:-/run/media/heli9x/FS-STORAGE}"
+DEFAULT_STORAGE_DIR="/run/media/${SUDO_USER:-${USER:-filey}}/FS-STORAGE"
+STORAGE_DIR="${FILEY_STORAGE_DIR:-$DEFAULT_STORAGE_DIR}"
 BIND_ADDR="${FILEY_BIND:-0.0.0.0:9100}"
 
 if [[ ! -d "$SOURCE_DIR" ]]; then

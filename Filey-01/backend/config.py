@@ -7,6 +7,11 @@ CONFIG_FILENAME = '.filey-config.json'
 DEFAULT_NAME = 'Filey'
 
 
+def default_storage_dir():
+    username = os.environ.get('SUDO_USER') or os.environ.get('USER') or Path.home().name
+    return Path('/run/media') / username / 'FS-STORAGE'
+
+
 def config_path(storage_root):
     return Path(storage_root) / CONFIG_FILENAME
 
@@ -37,6 +42,7 @@ def discover_storage_roots(extra=None):
         for raw in extra:
             if raw:
                 roots.append(Path(raw))
+    roots.append(default_storage_dir())
     for raw in [
         '/run/media',
         '/mnt/data',
