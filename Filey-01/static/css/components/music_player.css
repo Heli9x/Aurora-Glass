@@ -1,0 +1,568 @@
+.filey-music-dialog {
+    width: min(100%, 430px);
+    max-height: 92vh;
+    padding: 12px;
+    overflow-y: auto;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.filey-music-dialog .dialog-close {
+    z-index: 40;
+    color: #fff;
+    background: rgba(0, 0, 0, .45);
+    border: 1px solid rgba(255, 255, 255, .24);
+}
+
+.filey-music-dialog .dialog-close:hover {
+    color: #111;
+    background: #fff;
+}
+
+.filey-music-player {
+    --theme-color: #575757;
+    --theme-color-strong: #3e3e3e;
+    --theme-color-soft: #6b6b6b;
+    --theme-on-color: #fff;
+    --theme-on-color-muted: #f5f5f5;
+    --theme-on-accent: #fff;
+    position: relative;
+    width: 100%;
+    max-width: 390px;
+    margin: 0 auto;
+    padding: 10px;
+    overflow: hidden;
+    border-radius: 12px;
+    color: var(--theme-on-color);
+    background: var(--theme-color);
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    transition: background-color .3s ease, color .3s ease;
+}
+
+.filey-music-player,
+.filey-music-player * {
+    box-sizing: border-box;
+}
+
+.filey-music-player button {
+    padding: 5px;
+    border: 0;
+    border-radius: 5px;
+    color: var(--theme-on-color);
+    background: var(--theme-color-soft);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color .2s ease, color .2s ease, opacity .2s ease;
+}
+
+.filey-music-player button:hover {
+    color: var(--theme-on-color);
+    background: var(--theme-color-strong);
+}
+
+.filey-music-player button:focus-visible {
+    outline: 2px solid var(--theme-on-color);
+    outline-offset: 2px;
+}
+
+.filey-music-player button:disabled {
+    cursor: default;
+    opacity: .45;
+}
+
+.filey-music-player button i {
+    pointer-events: none;
+}
+
+.filey-music-player header.actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2px 4px 0;
+}
+
+.filey-music-player .group-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filey-music-player .profile {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px;
+}
+
+.filey-music-player .profile .cover {
+    position: relative;
+    width: 112px;
+    height: 112px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--theme-color-soft);
+}
+
+.filey-music-player .profile .cover-image {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 50%;
+    color: var(--theme-on-color-muted);
+    font-size: 2rem;
+}
+
+.filey-music-player .profile .cover-image .cover-art {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.filey-music-player .details {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    align-content: start;
+    gap: 4px;
+    min-width: 0;
+}
+
+.filey-music-player .details .genre {
+    color: var(--theme-on-color-muted);
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.filey-music-player .details .title {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0;
+    color: var(--theme-on-color);
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.15;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.filey-music-player .details .artist {
+    overflow: hidden;
+    color: var(--theme-on-color-muted);
+    font-size: .9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.filey-music-player .lyrics-wrap {
+    display: flex;
+    flex-direction: column;
+    min-height: 150px;
+    max-height: 200px;
+    margin: 6px 8px;
+    padding: 8px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--theme-color-strong);
+}
+
+.filey-music-player .lyrics {
+    --lyrics-dim: var(--theme-on-color-muted);
+    --lyrics-active: var(--theme-on-color);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);
+}
+
+.filey-music-player .lyrics::-webkit-scrollbar {
+    display: none;
+}
+
+.filey-music-player .lyrics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 60px 0;
+    list-style: none;
+}
+
+.filey-music-player .lyric-line {
+    color: var(--lyrics-dim);
+    font-size: .8rem;
+    line-height: 1.35;
+    text-align: center;
+    opacity: .35;
+    transform: scale(.92);
+    transition: opacity .25s ease, transform .25s ease, font-size .25s ease;
+    cursor: pointer;
+    user-select: none;
+}
+
+.filey-music-player .lyric-line:hover {
+    opacity: .65;
+}
+
+.filey-music-player .lyric-text {
+    display: inline;
+    background-image: linear-gradient(
+        90deg,
+        var(--lyrics-active) 0%,
+        var(--lyrics-active) var(--progress, 0%),
+        var(--lyrics-dim) var(--progress, 0%),
+        var(--lyrics-dim) 100%
+    );
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.filey-music-player .lyric-line.active {
+    opacity: 1;
+    transform: scale(1);
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.filey-music-player .lyrics-empty {
+    padding: 24px 0;
+    color: var(--lyrics-dim);
+    font-size: .9rem;
+    list-style: none;
+    text-align: center;
+}
+
+.filey-music-player .controls {
+    padding: 4px 8px 8px;
+}
+
+.filey-music-player .controls .progress-bar {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    margin: 10px 0;
+    padding: 1px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--theme-color-soft);
+    cursor: pointer;
+    touch-action: none;
+}
+
+.filey-music-player .controls .progress-bar:focus-visible {
+    outline: 2px solid var(--theme-on-color);
+    outline-offset: 3px;
+}
+
+.filey-music-player .progress-bar span.progress {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--theme-on-color);
+}
+
+.filey-music-player .control-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--theme-on-color);
+}
+
+.filey-music-player .control-options div {
+    font-size: .95rem;
+}
+
+.filey-music-player .time-taken,
+.filey-music-player .total-time {
+    min-width: 34px;
+    font-variant-numeric: tabular-nums;
+}
+
+.filey-music-player .total-time {
+    text-align: right;
+}
+
+.filey-music-player .repeat.active {
+    color: var(--theme-color-strong);
+    background: var(--theme-on-color);
+}
+
+.filey-music-player .repeat.active:hover {
+    color: var(--theme-color-strong);
+    background: var(--theme-on-color);
+}
+
+.filey-music-player .playlist-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    color: var(--theme-on-color);
+    background: var(--theme-color-strong);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: opacity .2s ease, transform .2s ease, visibility .2s ease;
+}
+
+.filey-music-player .playlist-panel.is-open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.filey-music-player .playlist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.filey-music-player .playlist-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.filey-music-player .playlist-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filey-music-player .playlist-list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    margin: 0;
+    padding: 2px;
+    overflow-y: auto;
+    list-style: none;
+    scrollbar-width: thin;
+}
+
+.filey-music-player .playlist-item {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color .2s ease;
+}
+
+.filey-music-player .playlist-item:hover,
+.filey-music-player .playlist-item:focus-visible {
+    outline: none;
+    background: var(--theme-color-soft);
+}
+
+.filey-music-player .playlist-item.active {
+    background: var(--theme-color-soft);
+    box-shadow: inset 3px 0 0 var(--theme-on-color);
+}
+
+.filey-music-player .playlist-cover {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    border-radius: 4px;
+    color: var(--theme-on-color-muted);
+    background: var(--theme-color-soft);
+}
+
+.filey-music-player .playlist-cover img {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.filey-music-player .playlist-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.filey-music-player .playlist-title {
+    overflow: hidden;
+    color: var(--theme-on-color);
+    font-size: .9rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.filey-music-player .playlist-meta {
+    overflow: hidden;
+    color: var(--theme-on-color-muted);
+    font-size: .72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.filey-music-player .playlist-duration {
+    color: var(--theme-on-color-muted);
+    font-size: .72rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.filey-music-player .playlist-remove {
+    padding: 4px;
+    color: var(--theme-on-color-muted);
+    background: transparent;
+    font-size: .9rem;
+}
+
+.filey-music-player .playlist-remove:hover {
+    color: var(--theme-color-strong);
+    background: var(--theme-on-color);
+}
+
+.filey-music-player .playlist-empty {
+    padding: 24px 12px;
+    color: var(--theme-on-color-muted);
+    text-align: center;
+}
+
+@media (max-width: 460px) {
+    .filey-music-dialog {
+        padding: 8px;
+    }
+
+    .filey-music-player {
+        border-radius: 10px;
+    }
+
+    .filey-music-player .profile {
+        grid-template-columns: 92px minmax(0, 1fr);
+    }
+
+    .filey-music-player .profile .cover {
+        width: 92px;
+        height: 92px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .filey-music-player .lyrics {
+        scroll-behavior: auto;
+    }
+
+    .filey-music-player .lyric-line {
+        transition: none;
+    }
+}
+
+.audio-editor-dialog { width: min(520px, calc(100vw - 24px)); }
+.audio-editor-dialog h2 { margin: 2px 0 14px; overflow-wrap: anywhere; }
+
+.wiz { display: grid; gap: 14px; }
+.wiz button, .wiz input, .wiz textarea { font: inherit; }
+
+.wiz-steps { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.wiz-dot { display: grid; justify-items: center; gap: 4px; flex: 1; position: relative; color: var(--muted, #999); font-size: 11px; }
+.wiz-dot::before {
+    content: '';
+    position: absolute;
+    top: 13px;
+    left: calc(50% + 16px);
+    right: calc(-50% + 16px);
+    height: 2px;
+    background: rgba(255, 255, 255, .15);
+}
+.wiz-dot:last-child::before { display: none; }
+.wiz-dot span {
+    display: grid; place-items: center;
+    width: 26px; height: 26px;
+    border: 1px solid rgba(255, 255, 255, .25);
+    border-radius: 50%;
+    font-weight: 700;
+}
+.wiz-dot.active { color: #fff; }
+.wiz-dot.active span { color: #111; background: #fff; border-color: #fff; }
+.wiz-dot.done span { background: rgba(255, 255, 255, .22); border-color: transparent; color: #fff; }
+.wiz-dot.done::before { background: rgba(255, 255, 255, .5); }
+.wiz-dot em { font-style: normal; }
+@media (max-width: 460px) { .wiz-dot em { display: none; } }
+
+.wiz-title { margin: 6px 0 0; font-size: 1.2rem; }
+.wiz-text, .wiz-hint, .wiz-status { margin: 0; font-size: .85rem; color: var(--muted, #aaa); }
+.wiz-body { min-height: 180px; }
+.wiz-panel { display: grid; gap: 12px; align-content: start; }
+
+.wiz-field { display: grid; gap: 5px; color: var(--muted, #aaa); font-size: 12px; }
+.wiz-field small { opacity: .8; }
+.wiz input[type="text"], .wiz input[type="number"], .wiz textarea {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 11px;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 8px;
+    outline: 0;
+    color: #fff;
+    background: rgba(255, 255, 255, .07);
+}
+.wiz textarea { padding: 10px 11px; resize: vertical; }
+.wiz input:focus-visible, .wiz textarea:focus-visible { border-color: #fff; }
+
+.wiz button:not(.submit-button) {
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 8px;
+    color: #fff;
+    background: rgba(255, 255, 255, .08);
+    cursor: pointer;
+}
+.wiz button:not(.submit-button):hover { background: rgba(255, 255, 255, .16); }
+.wiz .wiz-link { border: 0; background: none; min-height: 0; padding: 4px 8px; opacity: .8; }
+
+.wiz-cover-row { grid-template-columns: 120px 1fr; align-items: center; }
+.wiz-cover { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; }
+.wiz-cover-empty { display: grid; place-items: center; font-size: 34px; border: 1px dashed rgba(255, 255, 255, .35); opacity: .7; }
+.wiz-cover-actions { display: grid; gap: 8px; justify-items: start; }
+
+.wiz-inline { display: flex; flex-wrap: wrap; gap: 8px; }
+.wiz-rows { display: grid; gap: 6px; max-height: 200px; overflow-y: auto; }
+.wiz-row { display: grid; grid-template-columns: 1fr 72px 72px auto; gap: 6px; align-items: center; }
+.wiz-row input { min-height: 36px; padding: 0 8px; }
+
+.wiz-summary { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
+.wiz-summary dt { color: var(--muted, #aaa); }
+.wiz-summary dd { margin: 0; overflow-wrap: anywhere; }
+
+.wiz-nav { display: flex; gap: 8px; align-items: center; }
+.wiz-nav .wiz-next { margin-left: auto; min-width: 110px; }
+.wiz-nav [hidden] { display: none; }

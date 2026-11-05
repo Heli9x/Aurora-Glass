@@ -570,6 +570,10 @@ class Settings {
             ['size_desc', 'Largest first'],
             ['size_asc', 'Smallest first'],
             ['type', 'Type'],
+            ['artist', 'Artist (music)'],
+            ['album', 'Album (music)'],
+            ['genre', 'Genre (music)'],
+            ['year', 'Release year (music)'],
         ]);
 
         this.viewSelect = viewLabel.querySelector('select');

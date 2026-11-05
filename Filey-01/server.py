@@ -9,10 +9,13 @@ from flask import Flask, Response, jsonify, request, send_file, send_from_direct
 from flask_cors import CORS
 
 from backend import auth
-from backend import config as app_config
-from backend.cleanup import CleanupService
-from backend.media import MediaLibrary
-from backend.photos import PhotoService
+from backend.core import config as app_config
+from backend.audio import lyrics as lyrics_lib
+from backend.audio import service as audio_limits
+from backend.audio.service import AudioService
+from backend.library.cleanup import CleanupService
+from backend.library.media import MediaLibrary
+from backend.photos.service import PhotoService
 
 BASE_DIR = Path(__file__).resolve().parent
 fallback_storage = BASE_DIR / 'backend-data'
@@ -49,7 +52,7 @@ STORAGE_DIR = resolve_storage_dir()
 CONFIG = app_config.load_config(STORAGE_DIR)
 PLATFORM_NAME = CONFIG.get('platform_name') or app_config.DEFAULT_NAME
 
-from backend.hls_project26 import (
+from backend.video.hls_project26 import (
     HlsManager,
     placeholder_manifest,
     effective_hls_settings,
@@ -59,8 +62,8 @@ from backend.hls_project26 import (
     X264_LOOKAHEAD,
     X264_PRESET,
 )
-from backend.migrate import migrate_caches, preview_caches
-from backend.paths import native_media_roots
+from backend.library.migrate import migrate_caches, preview_caches
+from backend.core.paths import native_media_roots
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path='')
 if os.environ.get('FILEY_TRUST_PROXY', '').strip().lower() in {'1', 'true', 'yes', 'on'}:
     from werkzeug.middleware.proxy_fix import ProxyFix
@@ -85,6 +88,7 @@ try:
 except Exception as error:  # never block startup on a cache migration problem
     print(f'Filey cache migration skipped: {error}', flush=True)
 photos = PhotoService(media)
+audio = AudioService(media)
 
 
 UUID_PATTERN = re.compile(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')
@@ -650,7 +654,13 @@ def upload_file():
         )
     except ValueError as error:
         return jsonify({'error': str(error)}), 400
-    return jsonify({'file': media.public_record(record)}), 201
+    warnings = []
+    if record['type'] == 'music':
+        record, warnings = audio.ingest_upload(record, request.form, request.files)
+    payload = {'file': media.public_record(record)}
+    if warnings:
+        payload['warnings'] = warnings
+    return jsonify(payload), 201
 
 
 @app.post('/api/clean')
@@ -721,7 +731,10 @@ def download_file(file_id):
 @app.patch('/api/files/<file_id>')
 @auth.require('files.edit')
 def update_file(file_id):
-    record = media.update(file_id, request.get_json(silent=True) or {})
+    payload = request.get_json(silent=True) or {}
+    record = media.update(file_id, payload)
+    if record and record['type'] == 'music':
+        record = audio.set_metadata(file_id, payload) or record
     if not record:
         return jsonify({'error': 'file not found'}), 404
     return jsonify({'file': media.public_record(record)})
@@ -740,7 +753,68 @@ def delete_file(file_id):
         return jsonify({'error': 'This file is linked from a shared folder.',
                         'needs_confirmation': True}), 409
     hls.remove(file_id)
+    audio.remove_assets(file_id)
     return jsonify({'success': True, 'removed': result == 'removed'})
+
+
+@app.get('/api/files/<file_id>/cover')
+@auth.require('files.read')
+def cover_file(file_id):
+    path = audio.cover_path(file_id) if media.find(file_id) else None
+    if not path:
+        return jsonify({'error': 'cover not found'}), 404
+    return send_file(path, conditional=True, max_age=3600)
+
+
+@app.put('/api/files/<file_id>/cover')
+@auth.require('files.edit')
+def set_cover(file_id):
+    upload = request.files.get('cover')
+    data = upload.read(audio_limits.MAX_COVER_BYTES + 1) if upload else request.get_data()
+    try:
+        record = audio.set_cover(file_id, data)
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+    if not record:
+        return jsonify({'error': 'music file not found'}), 404
+    return jsonify({'file': media.public_record(record)})
+
+
+@app.delete('/api/files/<file_id>/cover')
+@auth.require('files.edit')
+def delete_cover(file_id):
+    record = audio.remove_cover(file_id)
+    if not record:
+        return jsonify({'error': 'music file not found'}), 404
+    return jsonify({'file': media.public_record(record)})
+
+
+@app.get('/api/files/<file_id>/lyrics')
+@auth.require('files.read')
+def get_lyrics(file_id):
+    rows = audio.get_lyrics(file_id)
+    if rows is None:
+        return jsonify({'error': 'music file not found'}), 404
+    return jsonify({'lyrics': rows, 'format': 'text-speed-delay'})
+
+
+@app.put('/api/files/<file_id>/lyrics')
+@auth.require('files.edit')
+def set_lyrics(file_id):
+    payload = request.get_json(silent=True)
+    if payload is None and request.files.get('lyrics_file'):
+        payload = {'text': request.files['lyrics_file'].read(audio_limits.MAX_LYRICS_BYTES).decode('utf-8', 'replace')}
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'send {"lyrics": [[text, speed, delay], ...]} or {"text": "..."}'}), 400
+    source = payload['lyrics'] if 'lyrics' in payload else payload.get('text', '')
+    try:
+        rows = audio.set_lyrics(file_id, source, payload.get('format', 'auto'),
+                                'file' if 'text' in payload else 'user')
+    except lyrics_lib.LyricsError as error:
+        return jsonify({'error': str(error)}), 400
+    if rows is None:
+        return jsonify({'error': 'music file not found'}), 404
+    return jsonify({'lyrics': rows, 'file': media.public_record(media.find(file_id))})
 
 
 @app.post('/api/files/<file_id>/hls')

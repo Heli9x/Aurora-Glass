@@ -60,7 +60,9 @@ class Gallery {
             ['default', 'Recent'], ['oldest', 'Oldest'],
             ['name_asc', 'Name A-Z'], ['name_desc', 'Name Z-A'],
             ['size_desc', 'Largest'], ['size_asc', 'Smallest'],
-            ['type', 'Media type']
+            ['type', 'Media type'],
+            ['artist', 'Artist'], ['album', 'Album'],
+            ['genre', 'Genre'], ['year', 'Release year']
         ];
         options.forEach(([value, text]) => {
             const option = document.createElement('option');

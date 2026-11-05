@@ -7,8 +7,10 @@ from pathlib import Path
 
 from werkzeug.utils import secure_filename
 
-from backend import config as app_config
-from backend import search as media_search
+from backend.core import config as app_config
+from backend.library import search as media_search
+
+AUDIO_SORTS = {'artist': 'artist', 'genre': 'genre', 'album': 'album', 'year': 'year'}
 
 
 class MediaLibrary:
@@ -131,6 +133,7 @@ class MediaLibrary:
                 file_type = data.get('media_type') or data.get('category') or media_type
                 original_name = data.get('file_name', pointer_path.stem)
                 spec = self.categories.get(file_type, {})
+                audio = data.get('audio') if isinstance(data.get('audio'), dict) else {}
                 files.append({
                     'id': pointer_path.stem,
                     'name': data.get('name') or original_name,
@@ -152,9 +155,42 @@ class MediaLibrary:
                     'sourceRoot': data.get('source_root'),
                     'pointerPath': str(pointer_path),
                     'exists': source.is_file(),
+                    **self._audio_fields(file_type, audio),
                 })
         self._scanned = files
         return list(self._scanned)
+
+    @staticmethod
+    def _audio_fields(file_type, audio):
+        if file_type != 'music':
+            return {}
+        return {
+            'artist': audio.get('artist') or '',
+            'album': audio.get('album') or '',
+            'genre': audio.get('genre') or '',
+            'theme': audio.get('theme') or '',
+            'year': audio.get('year') or None,
+            'hasCover': bool(audio.get('cover')),
+            'hasLyrics': bool(audio.get('lyrics')),
+        }
+
+    def update_audio(self, file_id, fields):
+        """Merge audio tag fields into a record's pointer file; falsy values clear a field."""
+        record = self.find(file_id)
+        if not record:
+            return None
+        pointer_path = Path(record['pointerPath'])
+        pointer = json.loads(pointer_path.read_text(encoding='utf-8'))
+        audio = pointer.get('audio') if isinstance(pointer.get('audio'), dict) else {}
+        for key, value in fields.items():
+            if value in (None, '', False):
+                audio.pop(key, None)
+            else:
+                audio[key] = value
+        pointer['audio'] = audio
+        pointer_path.write_text(json.dumps(pointer, indent=2), encoding='utf-8')
+        self._invalidate()
+        return self.find(file_id)
 
     def read_sorted(self, media_type=None, sort='default'):
         """Return records filtered by media_type (None = all), sorted and cached per (type, sort)."""
@@ -246,6 +282,14 @@ class MediaLibrary:
             ordered.sort(key=lambda r: r.get('sizeBytes') or 0)
         elif mode == 'size_desc':
             ordered.sort(key=lambda r: r.get('sizeBytes') or 0, reverse=True)
+        elif mode in AUDIO_SORTS:
+            field = AUDIO_SORTS[mode]
+            if field == 'year':
+                # Untagged tracks go last in either direction of the year sort.
+                ordered.sort(key=lambda r: (r.get('year') is None, r.get('year') or 0, (r.get('name') or '').lower()))
+            else:
+                ordered.sort(key=lambda r: (not r.get(field), (r.get(field) or '').lower(),
+                                            (r.get('name') or '').lower()))
         elif mode == 'type':
             ordered.sort(key=lambda r: (r.get('type') or '', r.get('name') or ''))
         else:

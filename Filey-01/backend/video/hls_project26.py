@@ -8,7 +8,7 @@ import signal
 
 from flask import Response, send_file
 
-from backend import config as app_config
+from backend.core import config as app_config
 
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"

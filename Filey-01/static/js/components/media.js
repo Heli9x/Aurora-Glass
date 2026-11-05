@@ -1,7 +1,8 @@
 class MediaPlayer {
     constructor({ onDownload = null } = {}){
         this.onDownload = onDownload;
-        this.modal = new Modal('media-dialog', () => this.stopPlayback());
+        this.modal = new Modal('media-dialog', () => this.handleClose());
+        this.minimized = false;
         this.dialog = this.modal.dialog;
 
         this.preview = document.createElement('div');
@@ -19,7 +20,13 @@ class MediaPlayer {
         this.muteToggle.setAttribute('aria-label', 'Unmute');
         this.muteToggle.title = 'Unmute';
         this.muteToggle.innerHTML = '<i class="ri-volume-mute-line"></i>';
-        this.actions.append(this.playerToggle, this.muteToggle);
+        this.minimizeButton = document.createElement('button');
+        this.minimizeButton.type = 'button';
+        this.minimizeButton.setAttribute('aria-label', 'Minimize to dock');
+        this.minimizeButton.title = 'Minimize to dock';
+        this.minimizeButton.innerHTML = '<i class="ri-picture-in-picture-2-line"></i>';
+        this.minimizeButton.addEventListener('click', () => this.minimize());
+        this.actions.append(this.playerToggle, this.muteToggle, this.minimizeButton);
 
         this.title = document.createElement('h2');
         this.title.textContent = 'Preview';
@@ -53,6 +60,7 @@ class MediaPlayer {
             return;
         }
         this.stopAll();
+        this.dropDock();
         const requestId = ++this.playbackRequest;
         this.activePlaybackFile = file;
         this.title.textContent = file.name;
@@ -68,10 +76,12 @@ class MediaPlayer {
             img.src = previewUrl;
             img.alt = file.name;
             this.preview.appendChild(img);
+            this.minimizeButton.hidden = true;
             this.modal.open();
             return;
         }
 
+        this.minimizeButton.hidden = false;
         this.dialog.classList.remove('photo-dialog');
         const tag = file.type === 'movies' ? 'video' : 'audio';
         const probe = document.createElement(tag);
@@ -86,6 +96,8 @@ class MediaPlayer {
         if (canPlayNative) player.src = previewUrl;
         this.preview.replaceChildren(player);
         this.modal.open();
+        this.registerDock(file, player);
+        window.mediaDock?.setExpanded('media-viewer');
 
         this.bindPlayerActions(player);
         if (canPlayNative){
@@ -131,6 +143,51 @@ class MediaPlayer {
         this.updatePlayerActions(player);
     }
 
+    registerDock(file, player){
+        const dock = window.mediaDock;
+        if (!dock) return;
+        const id = 'media-viewer';
+        const isVideo = file.type === 'movies';
+        dock.register(id, {
+            kind: isVideo ? 'video' : 'audio',
+            icon: isVideo ? 'ri-movie-2-line' : 'ri-music-2-line',
+            title: file.name,
+            subtitle: isVideo ? 'Video' : 'Audio',
+            playing: !player.paused,
+            onToggle: () => (player.paused ? player.play().catch(() => {}) : player.pause()),
+            onPause: () => player.pause(),
+            onExpand: () => this.expand(),
+            onClose: () => { this.minimized = false; this.modal.close(); }
+        });
+        ['play', 'pause', 'ended'].forEach((name) => player.addEventListener(name, () => {
+            dock.update(id, { playing: !player.paused && !player.ended });
+            if (name === 'play') dock.pauseOthers(id);
+        }));
+    }
+
+    dropDock(){
+        this.minimized = false;
+        window.mediaDock?.remove('media-viewer');
+    }
+
+    minimize(){
+        if (!document.getElementById('active-player')) return;
+        this.minimized = true;
+        this.modal.minimize();
+        window.mediaDock?.setExpanded(null);
+    }
+
+    expand(){
+        this.minimized = false;
+        this.modal.open();
+        window.mediaDock?.setExpanded('media-viewer');
+    }
+
+    handleClose(){
+        this.dropDock();
+        this.stopPlayback();
+    }
+
     async requestHlsPlayback(file, requestId){
         notify.show('Preparing full playback conversion...');
         try {
@@ -138,7 +195,7 @@ class MediaPlayer {
             this.hlsConversionActive = true;
             const start = await apiFetch(playlistUrl);
             if (!start.ok) throw new Error('HLS conversion request failed');
-            if (requestId !== this.playbackRequest || !this.modal.isOpen()) return;
+            if (requestId !== this.playbackRequest || !(this.modal.isOpen() || this.minimized)) return;
 
             const player = document.getElementById('active-player');
             if (!player || !window.Hls || !Hls.isSupported()) throw new Error('HLS playback is unavailable');

@@ -62,6 +62,11 @@ ROUTE_PERMISSIONS = {
     'view_file': 'files.read',
     'thumbnail_file': 'files.read',
     'stream_file': 'files.read',
+    'cover_file': 'files.read',
+    'set_cover': 'files.edit',
+    'delete_cover': 'files.edit',
+    'get_lyrics': 'files.read',
+    'set_lyrics': 'files.edit',
     'preview_file': 'files.read',
     'download_file': 'files.read',
     'update_file': 'files.edit',
@@ -636,11 +641,11 @@ def _cli_storage_dir():
                 return Path(value.strip()).expanduser()
     except OSError:
         pass
-    from backend import config as app_config
+    from backend.core import config as app_config
     default = app_config.default_storage_dir()
     if default.is_dir():
         return default
-    return Path(__file__).resolve().parent.parent / 'backend-data'
+    return Path(__file__).resolve().parents[2] / 'backend-data'
 
 
 def create_admin_cli(username, storage_dir=None):
@@ -681,6 +686,3 @@ def main(argv=None):
     parser.error('unknown command')
     return 2
 
-
-if __name__ == '__main__':
-    raise SystemExit(main())

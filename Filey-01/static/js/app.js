@@ -608,6 +608,7 @@ function onUploaded(record){
     state.pageNumber = 1;
     reload();
     notify.show(`File uploaded to ${PLATFORM_NAME} storage`);
+    if (record.type === 'music') window.fileyMusicPlayer?.editor?.open(record, { setup: true });
 }
 
 async function cleanLibrary(){
@@ -762,7 +763,7 @@ function buildGuideSections(){
             title: 'Browse and sort',
             body: [
                 { icon: 'ri-stack-line', title: 'Libraries', text: 'Select Libraries in the top bar to open every library (Movies, Music, Photos, Other and your own) with its file count. Pick one to browse it; use Scan in Settings to index existing files in a linked folder.' },
-                { icon: 'ri-sort-desc', title: 'Sorting', text: 'Use the sort menu to order by recent, oldest, name (A-Z / Z-A), size, or media type.' },
+                { icon: 'ri-sort-desc', title: 'Sorting', text: 'Use the sort menu to order by recent, oldest, name (A-Z / Z-A), size, or media type. Music can also be sorted by artist, album, genre, or release year.' },
                 { icon: 'ri-layout-grid-line', title: 'Views', text: 'Toggle between grid and list view with the view button. Pagination uses Prev / Next below the gallery.' },
                 { icon: 'ri-hourglass-line', title: 'Paging', text: 'The gallery shows one page at a time; already-viewed pages are cached so going back is instant.' }
             ]
@@ -877,6 +878,7 @@ function resetClientState(){
 }
 
 function handleUnauthorized(){
+    window.mediaDock?.closeAll();
     clearAuthUser();
     resetClientState();
     navbar.setAccount(null);
@@ -924,6 +926,7 @@ async function startApp(){
 }
 
 async function signOut(){
+    window.mediaDock?.closeAll();
     try {
         await apiFetch(`${API_BASE}/auth/logout`, { method: 'POST' });
     } catch {

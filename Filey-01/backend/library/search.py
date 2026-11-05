@@ -18,6 +18,11 @@ def _fields(record):
         record.get('type'),
         record.get('categoryLabel'),
         record.get('ext'),
+        record.get('artist'),
+        record.get('album'),
+        record.get('genre'),
+        record.get('theme'),
+        record.get('year'),
     ]
     tags = record.get('tags') or []
     if isinstance(tags, (list, tuple, set)):
