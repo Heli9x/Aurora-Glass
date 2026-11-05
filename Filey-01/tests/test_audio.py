@@ -29,6 +29,19 @@ class LyricsTests(unittest.TestCase):
         self.assertGreater(text_rows[1][2], text_rows[0][2])
         self.assertEqual(lyrics.parse(json.dumps([['hi', 0.1, 0.3]])), [['hi', 0.1, 0.3]])
 
+    def test_lenient_json_rows(self):
+        expected = [['a', 0.6, 1.0], ['b', 0.6, 5.0]]
+        for source in ('["a", 0.6, 1], ["b", 0.6, 5]',      # no outer brackets
+                       '["a", 0.6, 1],\n["b", 0.6, 5],',    # trailing comma
+                       '["a", 0.6, 1]\n["b", 0.6, 5]',      # rows on separate lines
+                       '[["a", 0.6, 1], ["b", 0.6, 5]]',
+                       '{"lyrics": [["a", 0.6, 1], ["b", 0.6, 5]]}'):
+            with self.subTest(source=source):
+                self.assertEqual(lyrics.parse(source), expected)
+        self.assertEqual(lyrics.parse('["a", 0.6, 1]'), [['a', 0.6, 1.0]])
+        with self.assertRaises(lyrics.LyricsError):
+            lyrics.parse('[not json', 'json')
+
 
 def tagged_mp3(**tags):
     from mutagen.id3 import APIC, ID3, TALB, TCON, TDRC, TIT2, TPE1, USLT
@@ -49,19 +62,6 @@ def tagged_mp3(**tags):
     path.unlink()
     path.parent.rmdir()
     return data
-
-    def test_lenient_json_rows(self):
-        expected = [['a', 0.6, 1.0], ['b', 0.6, 5.0]]
-        for source in ('["a", 0.6, 1], ["b", 0.6, 5]',      # no outer brackets
-                       '["a", 0.6, 1],\n["b", 0.6, 5],',    # trailing comma
-                       '["a", 0.6, 1]\n["b", 0.6, 5]',      # rows on separate lines
-                       '[["a", 0.6, 1], ["b", 0.6, 5]]',
-                       '{"lyrics": [["a", 0.6, 1], ["b", 0.6, 5]]}'):
-            with self.subTest(source=source):
-                self.assertEqual(lyrics.parse(source), expected)
-        self.assertEqual(lyrics.parse('["a", 0.6, 1]'), [['a', 0.6, 1.0]])
-        with self.assertRaises(lyrics.LyricsError):
-            lyrics.parse('[not json', 'json')
 
 
 class VorbisCoverTests(unittest.TestCase):
