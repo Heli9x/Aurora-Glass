@@ -97,8 +97,35 @@ export function fromText(source, { start = 0, gap = 4 } = {}) {
     return normalizeLines(entries);
 }
 
+// Reads ["text", speed, delay] rows leniently: missing outer brackets, trailing
+// commas, rows on separate lines. Returns the rows, or null if it is not JSON rows.
+export function parseJsonRows(source) {
+    const body = String(source).trim();
+    if (!/^[\[{]/.test(body)) return null;
+    const glued = body.replace(/\]\s*,?\s*\[/g, '],[');
+    const candidates = [body];
+    for (const variant of [body, glued]) {
+        const trimmed = variant.replace(/,\s*$/, '');
+        candidates.push(`[${trimmed}]`, trimmed.replace(/,(\s*[\]}])/g, '$1'));
+    }
+    for (const candidate of candidates) {
+        let value;
+        try {
+            value = JSON.parse(candidate);
+        } catch {
+            continue;
+        }
+        if (value && !Array.isArray(value) && typeof value === 'object') value = value.lyrics ?? value.lines;
+        if (!Array.isArray(value)) continue;
+        if (value.length && !value.some((item) => item && typeof item === 'object')) value = [value];
+        if (value.every(Array.isArray)) return value;
+    }
+    return null;
+}
+
 export function detectFormat(source) {
     if (typeof source === 'string') {
+        if (parseJsonRows(source)) return 'json';
         return /\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\]/.test(source) ? 'lrc' : 'text';
     }
     if (Array.isArray(source)) {
@@ -110,6 +137,8 @@ export function detectFormat(source) {
 export function normalizeSource(source, format = 'auto') {
     const resolved = format === 'auto' ? detectFormat(source) : format;
     switch (resolved) {
+        case 'json':
+            return fromLyrica(parseJsonRows(source) || []);
         case 'lyrica':
             return fromLyrica(source);
         case 'lrc':

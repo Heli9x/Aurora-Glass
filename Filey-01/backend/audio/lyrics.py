@@ -109,6 +109,34 @@ def from_lrc(text):
     return validate_rows(rows)
 
 
+def _json_rows(text):
+    """Read row JSON leniently: missing outer brackets, trailing commas, rows on separate lines.
+
+    Returns a list of rows, or None when the text is not JSON rows at all.
+    """
+    body = text.strip()
+    candidates = [body]
+    glued = re.sub(r'\]\s*,?\s*\[', '],[', body)
+    for variant in (body, glued):
+        trimmed = re.sub(r',\s*$', '', variant)
+        candidates.append(f'[{trimmed}]')
+        candidates.append(re.sub(r',(\s*[\]}])', r'\1', trimmed))
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            value = value.get('lyrics', value.get('lines'))
+        if not isinstance(value, list):
+            continue
+        if value and not any(isinstance(item, (list, tuple, dict)) for item in value):
+            value = [value]  # a single bare row
+        if all(isinstance(item, (list, tuple)) for item in value):
+            return value
+    return None
+
+
 def parse(source, fmt='auto'):
     """Normalize rows, JSON text, LRC text or plain text into validated rows."""
     if isinstance(source, list):
@@ -116,12 +144,12 @@ def parse(source, fmt='auto'):
     text = str(source or '').strip()
     if not text:
         return []
-    if fmt in ('auto', 'json') and text.startswith('['):
-        try:
-            return validate_rows(json.loads(text))
-        except json.JSONDecodeError:
-            if fmt == 'json':
-                raise LyricsError('lyrics JSON is not valid') from None
+    if fmt in ('auto', 'json') and text[0] in '[{':
+        rows = _json_rows(text)
+        if rows is not None:
+            return validate_rows(rows)
+        if fmt == 'json':
+            raise LyricsError('lyrics JSON is not valid')
     if fmt in ('auto', 'lrc') and any(
             _STAMP.match(line.strip()) for line in text.splitlines()):
         return from_lrc(text)
