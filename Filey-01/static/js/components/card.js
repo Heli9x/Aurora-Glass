@@ -1,13 +1,13 @@
 class Card {
-    constructor({ id = null, kind = 'other', imgSrc = '', imgAlt = '', icon = 'ri-file-3-line', title = 'Title', tags = [], btnText = 'Action', onOpen = null, onContext = null } = {}){
+    constructor({ id = null, kind = 'other', imgSrc = '', imgAlt = '', icon = 'ri-file-3-line', title = 'Title', titleTerms = [], tags = [], btnText = 'Action', onOpen = null, onContext = null } = {}){
         this.id = id;
         this.kind = kind;
         this.onOpen = onOpen;
         this.onContext = onContext;
-        this.element = this.#build(imgSrc, imgAlt, icon, title, tags, btnText);
+        this.element = this.#build(imgSrc, imgAlt, icon, title, titleTerms, tags, btnText);
     }
 
-    #build(imgSrc, imgAlt, icon, title, tags, btnText){
+    #build(imgSrc, imgAlt, icon, title, titleTerms, tags, btnText){
         const wrapper = document.createElement('article');
         wrapper.className = 'card-wrapper';
         if (this.id !== null) wrapper.dataset.id = String(this.id);
@@ -17,7 +17,7 @@ class Card {
         wrapper.append(
             this.#buildImage(imgSrc, imgAlt, icon),
             this.#buildMore(),
-            this.#buildContent(title, tags),
+            this.#buildContent(title, titleTerms, tags),
             this.#buildButton(btnText)
         );
 
@@ -72,13 +72,13 @@ class Card {
         return button;
     }
 
-    #buildContent(title, tags){
+    #buildContent(title, titleTerms, tags){
         const content = document.createElement('div');
         content.className = 'card-content';
 
         const titleEl = document.createElement('h3');
         titleEl.className = 'card-title';
-        titleEl.textContent = title;
+        this.#fillTitle(titleEl, title, titleTerms);
         content.appendChild(titleEl);
 
         if (tags && tags.length){
@@ -96,6 +96,36 @@ class Card {
             content.appendChild(tagList);
         }
         return content;
+    }
+
+    #fillTitle(titleEl, title, terms){
+        const text = String(title ?? '');
+        if (!terms || !terms.length){
+            titleEl.textContent = text;
+            return;
+        }
+        const lowered = text.toLowerCase();
+        const ranges = [];
+        terms.forEach((term) => {
+            const start = lowered.indexOf(term);
+            if (start >= 0) ranges.push([start, start + term.length]);
+        });
+        if (!ranges.length){
+            titleEl.textContent = text;
+            return;
+        }
+        ranges.sort((a, b) => a[0] - b[0]);
+        let cursor = 0;
+        ranges.forEach(([start, end]) => {
+            if (start < cursor) return;
+            if (start > cursor) titleEl.appendChild(document.createTextNode(text.slice(cursor, start)));
+            const mark = document.createElement('mark');
+            mark.className = 'search-hit';
+            mark.textContent = text.slice(start, end);
+            titleEl.appendChild(mark);
+            cursor = end;
+        });
+        if (cursor < text.length) titleEl.appendChild(document.createTextNode(text.slice(cursor)));
     }
 
     #buildButton(btnText){

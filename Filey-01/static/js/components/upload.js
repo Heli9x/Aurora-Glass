@@ -115,7 +115,7 @@ class Upload {
             radio.type = 'radio';
             radio.name = 'file-icon';
             radio.value = iconClass;
-            radio.checked = index === 0;
+            radio.defaultChecked = index === 0;
             const icon = document.createElement('i');
             icon.className = iconClass;
             label.append(radio, icon);
@@ -147,6 +147,24 @@ class Upload {
         form.addEventListener('submit', (e) => this.handleSubmit(e));
         this.form = form;
         this.dialog.appendChild(form);
+    }
+
+    setCategories(categories){
+        if (!this.category) return;
+        const previous = this.category.value;
+        this.category.textContent = '';
+        const options = [['auto', 'Detect automatically']];
+        (Array.isArray(categories) ? categories : []).forEach((category) => {
+            options.push([category.id, category.label || category.id]);
+        });
+        options.forEach(([value, text]) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = text;
+            this.category.appendChild(option);
+        });
+        const stillValid = options.some(([value]) => value === previous);
+        this.category.value = stillValid ? previous : 'auto';
     }
 
     handleFileChange(){
@@ -187,7 +205,8 @@ class Upload {
             : file.type.startsWith('audio') ? 'music'
             : file.type.startsWith('image') ? 'photos' : 'other';
         const selectedType = this.category.value === 'auto' ? type : this.category.value;
-        const selectedIcon = this.dialog.querySelector('input[name="file-icon"]:checked').value;
+        const selectedIconInput = this.dialog.querySelector('input[name="file-icon"]:checked');
+        const selectedIcon = selectedIconInput ? selectedIconInput.value : 'ri-file-3-line';
         const displayName = this.customName.value.trim() || file.name;
 
         const formData = new FormData();
@@ -203,6 +222,10 @@ class Upload {
             const result = await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', `${API_BASE}/upload`);
+                xhr.withCredentials = true;
+                if (authState.csrfToken){
+                    xhr.setRequestHeader('X-CSRF-Token', authState.csrfToken);
+                }
                 xhr.upload.onprogress = (uploadEvent) => {
                     if (!uploadEvent.lengthComputable) return;
                     const percent = Math.round((uploadEvent.loaded / uploadEvent.total) * 100);
@@ -210,9 +233,13 @@ class Upload {
                     this.progressLabel.textContent = `Uploading ${file.name}`;
                     this.progressPercent.textContent = `${percent}%`;
                 };
-                xhr.onload = () => xhr.status >= 200 && xhr.status < 300
-                    ? resolve(JSON.parse(xhr.responseText))
-                    : reject(new Error('Filey rejected the upload'));
+                xhr.onload = () => {
+                    if (xhr.status === 401 && authState.onUnauthorized) authState.onUnauthorized();
+                    if (xhr.status === 403) notify.show('Not allowed');
+                    return xhr.status >= 200 && xhr.status < 300
+                        ? resolve(JSON.parse(xhr.responseText))
+                        : reject(new Error('Filey rejected the upload'));
+                };
                 xhr.onerror = () => reject(new Error('Upload connection failed'));
                 xhr.send(formData);
             });

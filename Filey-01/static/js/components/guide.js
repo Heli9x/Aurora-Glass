@@ -32,9 +32,11 @@ class Guide {
                 const text = document.createElement('p');
                 text.className = 'guide-text';
                 if (row.stat){
-                    text.dataset.stat = row.stat;
-                    text.textContent = '…';
-                    this.statEls.set(row.stat, text);
+                    const value = document.createElement('span');
+                    value.dataset.stat = row.stat;
+                    value.textContent = '…';
+                    this.statEls.set(row.stat, value);
+                    text.appendChild(value);
                 } else {
                     text.textContent = row.text || '';
                 }

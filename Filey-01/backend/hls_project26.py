@@ -8,6 +8,8 @@ import signal
 
 from flask import Response, send_file
 
+from backend import config as app_config
+
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
 
@@ -20,10 +22,72 @@ IDLE_TIMEOUT = float(os.environ.get("FS_HLS_IDLE_TIMEOUT", "60"))
 CACHE_MAX_AGE_DAYS = int(os.environ.get("FS_HLS_CACHE_MAX_AGE_DAYS", "7"))
 CACHE_MAX_GB = int(os.environ.get("FS_HLS_CACHE_MAX_GB", "0") or 0)
 
+
+def _env_int(name, default):
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+# HLS conversion resource limits. Each may be overridden at runtime per storage
+# root via the 'hls' block in .filey-config.json (Settings page). Order of
+# precedence: config file -> environment variable -> these defaults.
+HLS_CONCURRENCY = _env_int("FS_HLS_CONCURRENCY", 2)
+HLS_RLIMIT_MB = _env_int("FS_HLS_RLIMIT_MB", 4096)
+X264_THREADS = _env_int("FS_X264_THREADS", 4)
+X264_LOOKAHEAD = _env_int("FS_X264_LOOKAHEAD", 24)
+X264_PRESET = os.environ.get("FS_X264_PRESET", "")
+
 ENCODER_CHAIN = ["vaapi", "qsv", "cpu"] if USE_GPU else ["cpu"]
 
 HLS_TIME = 6
 HLS_FLAGS = "independent_segments+temp_file"
+
+
+def effective_hls_settings(config_root=None):
+    """Resolve runtime HLS resource limits.
+
+    Read through each conversion start so the Settings page applies without a
+    restart. Precedence: config 'hls' block -> environment variable -> default.
+    """
+    cfg = {}
+    if config_root:
+        try:
+            stored = app_config.load_config(config_root).get("hls") or {}
+        except Exception:
+            stored = {}
+        cfg = {k: v for k, v in stored.items()
+               if k in app_config.HLS_RANGES or k == "preset"}
+
+    def _num(key, low, high, default):
+        try:
+            return min(high, max(low, int(cfg.get(key, default))))
+        except (TypeError, ValueError):
+            return default
+
+    return {
+        "concurrency": _num("concurrency", 1, 32, HLS_CONCURRENCY),
+        "rlimit_mb": _num("rlimit_mb", 0, 32768, HLS_RLIMIT_MB),
+        "x264_threads": _num("x264_threads", 1, 64, X264_THREADS),
+        "rc_lookahead": _num("rc_lookahead", 0, 64, X264_LOOKAHEAD),
+        "preset": (cfg.get("preset") if cfg.get("preset") is not None else X264_PRESET) or "",
+    }
+
+
+def _rlimit_preexec(rlimit_mb):
+    """Return a preexec_fn that caps the child's address space (0 = disabled)."""
+    if not rlimit_mb or rlimit_mb <= 0:
+        return None
+    limit_bytes = rlimit_mb * 1024 * 1024
+
+    def _apply():
+        try:
+            import resource
+            resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+        except (ImportError, OSError, ValueError):
+            pass
+
+    return _apply
 
 
 def audio_streams(source):
@@ -65,7 +129,7 @@ def default_audio_index(source, default_lang=None):
     return streams[0]["a_index"]
 
 
-def build_command(source, playlist, encoder=None, audio_index=None, resume_at=None):
+def build_command(source, playlist, encoder=None, audio_index=None, resume_at=None, perf=None):
     os.makedirs(os.path.dirname(playlist), exist_ok=True)
     if encoder is None:
         encoder = ENCODER_CHAIN[0]
@@ -106,7 +170,25 @@ def build_command(source, playlist, encoder=None, audio_index=None, resume_at=No
         cmd += ["-vf", "format=nv12,hwupload", "-c:v", "h264_vaapi"]
     else:
         cmd += ["-c:v", "libx264"]
+        cmd += _x264_tune(perf)
     return cmd + output_options
+
+
+def _x264_tune(perf):
+    """Thread/lookahead/preset flags for the libx264 fallback.
+
+    Unbounded defaults (one frame-thread per core + rc-lookahead 40) are what
+    let a single conversion grow to multi-GB RSS; these bounds keep it small.
+    """
+    perf = perf or {}
+    flags = ["-threads", str(perf.get("x264_threads", X264_THREADS))]
+    lookahead = perf.get("rc_lookahead", X264_LOOKAHEAD)
+    if lookahead:
+        flags += ["-x264-params", f"rc-lookahead={int(lookahead)}"]
+    preset = perf.get("preset") or ""
+    if preset:
+        flags += ["-preset", preset]
+    return flags
 
 
 def build_audio_command(source, playlist, encoder=None, resume_at=None):
@@ -136,10 +218,15 @@ def build_audio_command(source, playlist, encoder=None, resume_at=None):
     return cmd
 
 
-def start_conversion(source, playlist, encoder=None, audio_index=None, audio_only=False, resume_at=None):
+def start_conversion(source, playlist, encoder=None, audio_index=None, audio_only=False, resume_at=None, perf=None):
+    # Hard memory cap on the child ffmpeg (RLIMIT_AS); a too-low cap fails the
+    # attempt and falls through the encoder chain instead of runaway-exploding.
+    preexec = _rlimit_preexec((perf or {}).get("rlimit_mb", HLS_RLIMIT_MB))
     if audio_only:
-        return subprocess.Popen(build_audio_command(source, playlist, encoder, resume_at))
-    return subprocess.Popen(build_command(source, playlist, encoder, audio_index, resume_at))
+        return subprocess.Popen(build_audio_command(source, playlist, encoder, resume_at),
+                                preexec_fn=preexec)
+    return subprocess.Popen(build_command(source, playlist, encoder, audio_index, resume_at, perf),
+                            preexec_fn=preexec)
 
 
 def placeholder_manifest():
@@ -167,8 +254,23 @@ def _finalize_playlist(playlist):
 
 
 class HlsManager:
-    def __init__(self, cache_root):
-        self.cache_root = cache_root
+    def __init__(self, cache_dir_for, config_root=None, cache_parents=None):
+        # cache_dir_for(uuid) -> per-UUID cache dir. Caches are grouped per
+        # category under <storage_root>/<category>/cache/<uuid>.
+        if callable(cache_dir_for):
+            self._locate = cache_dir_for
+        else:
+            root = str(cache_dir_for)
+            self._locate = lambda uuid: os.path.join(root, uuid)
+        if cache_parents is None:
+            base = "" if callable(cache_dir_for) else str(cache_dir_for)
+            self._parents = (lambda: [base]) if base else (lambda: [])
+        elif callable(cache_parents):
+            self._parents = cache_parents
+        else:
+            self._parents = lambda: list(cache_parents)
+        # Root holding .filey-config.json (runtime HLS resource settings).
+        self.config_root = config_root
         self.locks = {}
         self.locks_guard = threading.Lock()
         self.conversions = {}
@@ -178,24 +280,20 @@ class HlsManager:
         self.default_lang = {}
         self.audio_only = set()
         self.paused = set()
-        os.makedirs(cache_root, exist_ok=True)
-        self._migrate_legacy_cache(cache_root)
-        self._migrate_json_suffix_cache(cache_root)
+        self._slot = threading.Condition()
+        self._live = 0
+        for parent in self._cache_parents():
+            os.makedirs(parent, exist_ok=True)
+            self._migrate_json_suffix_cache(parent)
         threading.Thread(target=self._sweeper, daemon=True).start()
         threading.Thread(target=self._cache_cleaner, daemon=True).start()
         self.run_cache_cleanup()
 
-    def _migrate_legacy_cache(self, cache_root):
-        legacy = os.path.join(os.path.dirname(cache_root), ".hls_cache")
-        if not os.path.isdir(legacy):
-            return
-        for entry in os.scandir(legacy):
-            dest = os.path.join(cache_root, entry.name)
-            if os.path.isdir(dest):
-                shutil.rmtree(dest, ignore_errors=True)
-            shutil.move(entry.path, dest)
-        shutil.rmtree(legacy, ignore_errors=True)
-        print("HLS cache migrated to", cache_root, flush=True)
+    def _cache_parents(self):
+        try:
+            return [str(parent) for parent in self._parents() if parent]
+        except Exception:
+            return []
 
     def _migrate_json_suffix_cache(self, cache_root):
         """Rename cache dirs created when UUIDs still carried their '.json'
@@ -220,9 +318,10 @@ class HlsManager:
         return f"{uuid}:{lang}" if lang else uuid
 
     def _cache_dir(self, uuid, lang=None):
+        base = self._locate(uuid)
         if lang:
-            return os.path.join(self.cache_root, uuid, lang)
-        return os.path.join(self.cache_root, uuid)
+            return os.path.join(base, lang)
+        return base
 
     def tracks(self, uuid, source):
         streams = audio_streams(source)
@@ -396,42 +495,64 @@ class HlsManager:
                     self.active_procs.pop(key, None)
 
     def _start_attempt(self, source, playlist, key, stream_index, audio_only, gen, resume_at=None):
-        for i, encoder in enumerate(ENCODER_CHAIN):
-            attempt_resume = resume_at if (i == 0 and resume_at) else None
-            if attempt_resume is None:
-                self._purge_cache_dir(os.path.dirname(playlist))
-            proc = start_conversion(source, playlist, encoder=encoder,
-                                    audio_index=stream_index, audio_only=audio_only,
-                                    resume_at=attempt_resume)
-            with self.locks_guard:
-                self.active_procs[key] = (proc, os.path.dirname(playlist))
-                should_stop = key in self.paused
-                stale = self.conversion_gen.get(key) != gen
-            if stale:
-                print(f"HLS {key}: superseded, terminating orphaned ffmpeg", flush=True)
-                try:
-                    proc.terminate()
-                    proc.wait(timeout=10)
-                except (ProcessLookupError, subprocess.TimeoutExpired):
-                    try:
-                        proc.kill()
-                    except (ProcessLookupError, PermissionError):
-                        pass
-                return "cancelled"
-            if should_stop:
-                try:
-                    proc.send_signal(signal.SIGSTOP)
-                except (ProcessLookupError, PermissionError):
-                    pass
-            rc = proc.wait()
+        # Bounded concurrency: wait for a free conversion slot before spawning,
+        # released when this attempt's ffmpeg finally exits (covers success,
+        # encoder fallback, superseded, and paused paths).
+        limits = effective_hls_settings(self.config_root)
+        self._acquire_conv_slot(limits["concurrency"])
+        try:
             with self.locks_guard:
                 if self.conversion_gen.get(key) != gen:
                     return "cancelled"
-            if rc == 0:
-                if encoder != ENCODER_CHAIN[0]:
-                    print(f"HLS {key}: fell back to encoder '{encoder}'", flush=True)
-                return "ok"
-        return "failed"
+            for i, encoder in enumerate(ENCODER_CHAIN):
+                attempt_resume = resume_at if (i == 0 and resume_at) else None
+                if attempt_resume is None:
+                    self._purge_cache_dir(os.path.dirname(playlist))
+                proc = start_conversion(source, playlist, encoder=encoder,
+                                        audio_index=stream_index, audio_only=audio_only,
+                                        resume_at=attempt_resume, perf=limits)
+                with self.locks_guard:
+                    self.active_procs[key] = (proc, os.path.dirname(playlist))
+                    should_stop = key in self.paused
+                    stale = self.conversion_gen.get(key) != gen
+                if stale:
+                    print(f"HLS {key}: superseded, terminating orphaned ffmpeg", flush=True)
+                    try:
+                        proc.terminate()
+                        proc.wait(timeout=10)
+                    except (ProcessLookupError, subprocess.TimeoutExpired):
+                        try:
+                            proc.kill()
+                        except (ProcessLookupError, PermissionError):
+                            pass
+                    return "cancelled"
+                if should_stop:
+                    try:
+                        proc.send_signal(signal.SIGSTOP)
+                    except (ProcessLookupError, PermissionError):
+                        pass
+                rc = proc.wait()
+                with self.locks_guard:
+                    if self.conversion_gen.get(key) != gen:
+                        return "cancelled"
+                if rc == 0:
+                    if encoder != ENCODER_CHAIN[0]:
+                        print(f"HLS {key}: fell back to encoder '{encoder}'", flush=True)
+                    return "ok"
+            return "failed"
+        finally:
+            self._release_conv_slot()
+
+    def _acquire_conv_slot(self, limit):
+        with self._slot:
+            while self._live >= limit:
+                self._slot.wait()
+            self._live += 1
+
+    def _release_conv_slot(self):
+        with self._slot:
+            self._live = max(0, self._live - 1)
+            self._slot.notify_all()
 
     def _state_string(self, key):
         with self.locks_guard:
@@ -605,7 +726,7 @@ class HlsManager:
                 if k == uuid or k.startswith(uuid + ":"):
                     self.audio_only.discard(k)
             self.default_lang.pop(uuid, None)
-        shutil.rmtree(os.path.join(self.cache_root, uuid), ignore_errors=True)
+        shutil.rmtree(self._locate(uuid), ignore_errors=True)
 
     def status(self, uuid, source, lang=None):
         cache_dir = self._cache_dir(uuid, lang)
@@ -628,11 +749,15 @@ class HlsManager:
         return total
 
     def run_cache_cleanup(self):
-        if not os.path.isdir(self.cache_root):
+        for cache_root in self._cache_parents():
+            self._clean_cache_root(cache_root)
+
+    def _clean_cache_root(self, cache_root):
+        if not os.path.isdir(cache_root):
             return
         now = time.time()
         aged = []
-        for entry in os.scandir(self.cache_root):
+        for entry in os.scandir(cache_root):
             if not entry.is_dir():
                 continue
             try:
@@ -658,7 +783,7 @@ class HlsManager:
             else:
                 aged.append((last, entry.name, entry.path))
 
-        if CACHE_MAX_GB and os.path.isdir(self.cache_root):
+        if CACHE_MAX_GB and os.path.isdir(cache_root):
             limit = CACHE_MAX_GB * 1e9
             total = sum(self._dir_size(p) for _, _, p in aged)
             for _, name, path in sorted(aged):
@@ -691,9 +816,10 @@ class HlsManager:
             self.audio_only.clear()
             self.default_lang.clear()
         subprocess.run(["pkill", "-x", "ffmpeg"], capture_output=True)
-        if os.path.isdir(self.cache_root):
-            shutil.rmtree(self.cache_root, ignore_errors=True)
-            os.makedirs(self.cache_root, exist_ok=True)
+        for cache_root in self._cache_parents():
+            if os.path.isdir(cache_root):
+                shutil.rmtree(cache_root, ignore_errors=True)
+                os.makedirs(cache_root, exist_ok=True)
         print("HLS cache cleared", flush=True)
 
     def _read(self, filename):

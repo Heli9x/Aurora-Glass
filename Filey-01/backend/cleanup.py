@@ -1,5 +1,4 @@
-import os
-from pathlib import Path
+import shutil
 
 
 class CleanupService:
@@ -22,21 +21,16 @@ class CleanupService:
         return {'success': True, 'removed': removed_records, 'cache': removed_cache, 'remaining': len(self.media.read_files())}
 
     def clean_photo_cache(self):
-        expected = set()
-        for record in self.media.read_files():
-            if record.get('type') != 'photos':
-                continue
-            source = self.photos.source_path(record)
-            if not source.is_file():
-                continue
-            stamp = int(source.stat().st_mtime)
-            stem = Path(record.get('originalName', record['name'])).stem
-            expected.add(f'{stem}_{stamp}.webp')
-            expected.add(f'{stem}_{stamp}.thumb.webp')
+        live = {
+            record['id']
+            for record in self.media.read_files()
+            if record.get('type') == 'photos' and record['exists']
+        }
+        photos_cache = self.media.category_cache_dir('photos')
         removed = 0
-        for folder in (self.photos.cache_dir, self.photos.thumbnail_dir):
-            for item in folder.glob('*.webp'):
-                if item.name not in expected:
-                    item.unlink(missing_ok=True)
+        if photos_cache.is_dir():
+            for entry in photos_cache.iterdir():
+                if entry.is_dir() and entry.name not in live:
+                    shutil.rmtree(entry, ignore_errors=True)
                     removed += 1
         return removed

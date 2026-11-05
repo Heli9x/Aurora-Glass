@@ -21,6 +21,13 @@
 }
 
 .nav-link span { display: none; }
+button.nav-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
 .nav-link:hover, .nav-link.active { color: #111; background: #fff; }
 
 @media (max-width: 399px) {

@@ -5,28 +5,26 @@ from pathlib import Path
 
 
 class PhotoService:
-    """Creates cached WebP images and thumbnails on demand."""
+    """Creates cached WebP images and thumbnails on demand.
 
-    def __init__(self, source_dir, cache_dir, thumbnail_size=280):
-        self.source_dir = Path(source_dir)
-        self.cache_dir = Path(cache_dir)
-        self.thumbnail_dir = self.cache_dir / 'thumbnails'
+    Caches live in Filey's managed space, one folder per media UUID:
+    ``<storage_root>/photos/cache/<uuid>/{full,thumb}.webp``.
+    """
+
+    def __init__(self, media, thumbnail_size=280):
+        self.media = media
         self.thumbnail_size = thumbnail_size
         self.locks = {}
         self.guard = threading.Lock()
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.thumbnail_dir.mkdir(parents=True, exist_ok=True)
 
     def source_path(self, record):
-        return self.source_dir / record['path'].split('/', 1)[1] if record.get('path', '').startswith('storage/') else self.source_dir / record['storedName']
+        return self.media.source_path(record)
+
+    def cache_dir(self, record):
+        return self.media.cache_dir(record)
 
     def cache_path(self, record, thumbnail=False):
-        source = self.source_path(record)
-        stamp = int(source.stat().st_mtime)
-        stem = Path(record['originalName']).stem
-        target_dir = self.thumbnail_dir if thumbnail else self.cache_dir
-        suffix = '.thumb' if thumbnail else ''
-        return target_dir / f'{stem}_{stamp}{suffix}.webp'
+        return self.cache_dir(record) / ('thumb.webp' if thumbnail else 'full.webp')
 
     def ensure_webp(self, record, thumbnail=False):
         source = self.source_path(record)
@@ -41,7 +39,8 @@ class PhotoService:
         with lock:
             if destination.is_file():
                 return destination
-            temporary = destination.with_suffix('.tmp.webp')
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            temporary = destination.with_name(destination.stem + '.tmp.webp')
             command = ['ffmpeg', '-y', '-i', str(source)]
             if thumbnail:
                 command += ['-vf', f'scale=min({self.thumbnail_size}\\,iw):-2']

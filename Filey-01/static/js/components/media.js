@@ -113,13 +113,13 @@ class MediaPlayer {
         });
         this.playerToggle.onclick = () => {
             if (player.paused){
-                if (this.hlsConversionActive && this.activePlaybackFile?.id){
-                    fetch(`${API_BASE}/hls/${this.activePlaybackFile.id}/resume`, { method: 'POST' }).catch(() => {});
+                if (this.hlsConversionActive && this.activePlaybackFile?.id && isAdmin()){
+                    apiFetch(`${API_BASE}/hls/${this.activePlaybackFile.id}/resume`, { method: 'POST' }).catch(() => {});
                 }
                 player.play().catch(() => {});
             } else {
-                if (this.hlsConversionActive && this.activePlaybackFile?.id){
-                    fetch(`${API_BASE}/hls/${this.activePlaybackFile.id}/pause`, { method: 'POST' }).catch(() => {});
+                if (this.hlsConversionActive && this.activePlaybackFile?.id && isAdmin()){
+                    apiFetch(`${API_BASE}/hls/${this.activePlaybackFile.id}/pause`, { method: 'POST' }).catch(() => {});
                 }
                 player.pause();
             }
@@ -136,7 +136,7 @@ class MediaPlayer {
         try {
             const playlistUrl = `${API_BASE}/hls/${file.id}/stream.m3u8`;
             this.hlsConversionActive = true;
-            const start = await fetch(playlistUrl);
+            const start = await apiFetch(playlistUrl);
             if (!start.ok) throw new Error('HLS conversion request failed');
             if (requestId !== this.playbackRequest || !this.modal.isOpen()) return;
 
@@ -174,8 +174,8 @@ class MediaPlayer {
     }
 
     stopPlayback(){
-        if (this.activePlaybackFile?.id && this.hlsConversionActive){
-            fetch(`${API_BASE}/hls/${this.activePlaybackFile.id}/cancel`, { method: 'POST' }).catch(() => {});
+        if (this.activePlaybackFile?.id && this.hlsConversionActive && isAdmin()){
+            apiFetch(`${API_BASE}/hls/${this.activePlaybackFile.id}/cancel`, { method: 'POST' }).catch(() => {});
         }
         this.stopAll();
         this.dialog.classList.remove('photo-dialog');

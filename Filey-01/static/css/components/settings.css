@@ -71,6 +71,10 @@
     filter: brightness(1.06);
 }
 
+.settings-card > .settings-btn {
+    margin-top: 12px;
+}
+
 .settings-storage-list {
     display: grid;
     gap: 8px;
@@ -122,6 +126,42 @@
     font-size: 0.88rem;
 }
 
+.settings-field-help {
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.settings-icon-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.settings-icon-control:focus-within {
+    border-color: var(--accent);
+}
+
+.settings-icon-control > i {
+    flex: 0 0 auto;
+    color: var(--muted);
+}
+
+.settings-icon-control input[type='text'] {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
 .settings-field select {
     padding: 8px 10px;
     border: 1px solid var(--line);
@@ -129,6 +169,20 @@
     background: var(--surface);
     color: var(--ink);
     font-size: 0.9rem;
+}
+
+.settings-field input[type='number'] {
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.settings-field input[type='number']:focus {
+    outline: none;
+    border-color: var(--accent);
 }
 
 .settings-msg {
@@ -143,4 +197,380 @@
 
 .settings-storage-list .settings-radio:has(input:checked) {
     border-color: var(--accent);
+}
+
+.settings-field input[type='text'] {
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.settings-field input[type='text']:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.settings-category-list {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.settings-category {
+    display: grid;
+    grid-template-columns: minmax(140px, 1.2fr) 1fr 1fr 1.4fr auto auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.settings-category-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.settings-category-name i {
+    color: var(--accent);
+}
+
+.settings-category-name small {
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.settings-category input[type='text'] {
+    min-width: 0;
+    padding: 7px 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--soft);
+    color: var(--ink);
+    font-size: 0.85rem;
+}
+
+.settings-category input[type='text']:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.settings-category select {
+    padding: 7px 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--soft);
+    color: var(--ink);
+    font-size: 0.85rem;
+}
+
+.settings-category-add {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding-top: 4px;
+    align-items: start;
+}
+
+.settings-category-add > .settings-btn {
+    align-self: end;
+    width: max-content;
+    min-width: 132px;
+    min-height: 36px;
+}
+
+.settings-category-add > .settings-field select {
+    width: 100%;
+    min-width: 0;
+}
+
+.settings-btn.small {
+    padding: 7px 12px;
+    font-size: 0.78rem;
+}
+
+.settings-btn.danger {
+    background: #e5484d;
+}
+
+.confirm-body {
+    margin: 8px 0 16px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+    .settings-category-add {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .settings-category {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .settings-category-add {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.settings-user-list {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.settings-user {
+    display: grid;
+    grid-template-columns: minmax(130px, 1.1fr) 110px minmax(140px, 1.2fr) auto auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.settings-user-name {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.settings-user-name i {
+    flex: 0 0 auto;
+    color: var(--accent);
+}
+
+.settings-user-name strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-user-name small {
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.settings-user select,
+.settings-user input[type='password'] {
+    min-width: 0;
+    padding: 7px 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--soft);
+    color: var(--ink);
+    font-size: 0.85rem;
+}
+
+.settings-user select:focus,
+.settings-user input[type='password']:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.settings-btn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.settings-user-add {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 12px;
+    align-items: end;
+    padding-top: 4px;
+}
+
+.settings-user-add > .settings-field select {
+    width: 100%;
+    min-width: 0;
+}
+
+.settings-user-add > .settings-btn {
+    width: max-content;
+    min-width: 108px;
+}
+
+.settings-field input[type='password'] {
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.9rem;
+}
+
+.settings-field input[type='password']:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.login-view {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: radial-gradient(circle at top, rgba(255, 255, 255, .08), rgba(17, 17, 17, .98) 60%);
+}
+
+.login-card {
+    width: min(100%, 380px);
+    padding: 26px 24px 22px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--soft);
+    box-shadow: 0 28px 70px rgba(8, 14, 30, .45);
+}
+
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.login-brand i {
+    color: var(--accent);
+    font-size: 1.2rem;
+}
+
+.login-card h1 {
+    margin: 16px 0 4px;
+    font-size: 1.35rem;
+    color: var(--ink);
+}
+
+.login-hint {
+    margin: 0 0 16px;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.login-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--ink);
+    font-size: 0.85rem;
+}
+
+.login-form input {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.95rem;
+}
+
+.login-form input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.login-submit {
+    margin-top: 4px;
+}
+
+.login-msg {
+    min-height: 1.1em;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.login-msg.error {
+    color: #e5484d;
+}
+
+.login-setup h2 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    color: var(--ink);
+}
+
+.login-setup p {
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.login-setup code {
+    display: block;
+    margin-bottom: 14px;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.78rem;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .settings-user {
+        grid-template-columns: minmax(120px, 1fr) 100px minmax(120px, 1fr) auto auto;
+    }
+    .settings-user-add {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .settings-user-add > .settings-btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 720px) {
+    .settings-user {
+        grid-template-columns: 1fr 1fr;
+    }
+    .settings-user-name {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 480px) {
+    .settings-user-add {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .settings-user {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .settings-user button {
+        width: 100%;
+    }
 }
