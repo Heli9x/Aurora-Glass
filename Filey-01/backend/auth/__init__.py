@@ -52,6 +52,8 @@ ROUTE_PERMISSIONS = {
     'categories_post': 'library.manage',
     'categories_delete': 'library.manage',
     'library_scan': 'library.manage',
+    'audio_facets': 'files.read',
+    'audio_rescan': 'library.manage',
     'categories_scan': 'library.manage',
     'stats': 'files.read',
     'list_files': 'files.read',
@@ -94,7 +96,7 @@ PUBLIC_ENDPOINTS = frozenset({
 })
 
 CSRF_EXEMPT_ENDPOINTS = frozenset({'auth_login', 'auth_setup'})
-MUTATING_METHODS = frozenset({'POST', 'PATCH', 'DELETE'})
+MUTATING_METHODS = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
 
 _STORE_LOCK = threading.Lock()
 _AUDIT_LOCK = threading.Lock()

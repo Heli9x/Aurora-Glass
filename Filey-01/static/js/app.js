@@ -14,6 +14,7 @@ const state = {
     perPage: PER_PAGE,
     page: 'home',
     sort: 'default',
+    filter: '',
     query: '',
     listView: false,
     storageDir: '',
@@ -100,6 +101,11 @@ gallery.render('library-container');
 pagination.mount(gallery.footer);
 gallery.setSortHandler((value) => {
     state.sort = value;
+    state.pageNumber = 1;
+    loadPage();
+});
+gallery.setFilterHandler((value) => {
+    state.filter = value;
     state.pageNumber = 1;
     loadPage();
 });
@@ -349,7 +355,7 @@ function currentType(){
 }
 
 function pageKey(){
-    return `${currentType()}|${state.sort}|${state.perPage}|${state.pageNumber}|${state.query}`;
+    return `${currentType()}|${state.sort}|${state.filter}|${state.perPage}|${state.pageNumber}|${state.query}`;
 }
 
 function totalPages(){
@@ -370,6 +376,11 @@ async function loadPage(force = false){
     const type = currentType();
     if (type) params.set('type', type);
     if (state.query) params.set('q', state.query);
+    const separator = state.filter.indexOf('=');
+    if (type === 'music' && separator > 0){
+        params.set(state.filter.slice(0, separator), state.filter.slice(separator + 1));
+    }
+    if (type === 'music' && (force || !facetsLoaded)) loadFacets();
     const token = ++fetchToken;
     try {
         const response = await apiFetch(`${API_BASE}/files?${params}`);
@@ -396,7 +407,21 @@ function applyPage(result){
     renderPage();
 }
 
+let facetsLoaded = false;
+
+async function loadFacets(){
+    facetsLoaded = true;
+    try {
+        const response = await apiFetch(`${API_BASE}/library/audio/facets`);
+        if (!response.ok) return;
+        gallery.setFilterOptions(await response.json(), state.filter);
+    } catch {
+        facetsLoaded = false;
+    }
+}
+
 function reload(){
+    facetsLoaded = false;
     pageCache.clear();
     loadPage(true);
 }
@@ -497,6 +522,7 @@ function renderPage(){
         eyebrow: metaEyebrow
     });
     gallery.setActionsHidden(isInfo || isSettings);
+    gallery.setFilterVisible(state.page === 'music');
     gallery.setFooterHidden(isInfo || isSettings);
     gallery.setSortValue(state.sort);
     gallery.listView = state.listView;
@@ -763,7 +789,7 @@ function buildGuideSections(){
             title: 'Browse and sort',
             body: [
                 { icon: 'ri-stack-line', title: 'Libraries', text: 'Select Libraries in the top bar to open every library (Movies, Music, Photos, Other and your own) with its file count. Pick one to browse it; use Scan in Settings to index existing files in a linked folder.' },
-                { icon: 'ri-sort-desc', title: 'Sorting', text: 'Use the sort menu to order by recent, oldest, name (A-Z / Z-A), size, or media type. Music can also be sorted by artist, album, genre, or release year.' },
+                { icon: 'ri-sort-desc', title: 'Sorting', text: 'Use the sort menu to order by recent, oldest, name (A-Z / Z-A), size, or media type. On the Music page, the filter menu shows only the tracks with a chosen artist, album, genre, theme, or release year.' },
                 { icon: 'ri-layout-grid-line', title: 'Views', text: 'Toggle between grid and list view with the view button. Pagination uses Prev / Next below the gallery.' },
                 { icon: 'ri-hourglass-line', title: 'Paging', text: 'The gallery shows one page at a time; already-viewed pages are cached so going back is instant.' }
             ]
@@ -912,7 +938,9 @@ async function startApp(){
         : 'home';
 
     const savedPrefs = loadPrefs();
-    if (typeof savedPrefs.sort === 'string') state.sort = savedPrefs.sort;
+    if (typeof savedPrefs.sort === 'string' && !['artist', 'album', 'genre', 'year'].includes(savedPrefs.sort)){
+        state.sort = savedPrefs.sort;
+    }
     if (Number.isFinite(savedPrefs.perPage)){
         state.perPage = Math.min(96, Math.max(1, Math.floor(savedPrefs.perPage)));
     }
@@ -972,6 +1000,9 @@ window.addEventListener('hashchange', () => {
     const page = location.hash.slice(1).toLowerCase();
     state.page = pages.includes(page) ? page : 'home';
     state.pageNumber = 1;
+    state.filter = '';
+    gallery.setFilterOptions({}, '');
+    facetsLoaded = false;
     loadPage();
 });
 

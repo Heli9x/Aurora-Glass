@@ -14,7 +14,7 @@ from backend.audio import lyrics as lyrics_lib
 from backend.audio import service as audio_limits
 from backend.audio.service import AudioService
 from backend.library.cleanup import CleanupService
-from backend.library.media import MediaLibrary
+from backend.library.media import AUDIO_FILTERS, MediaLibrary
 from backend.photos.service import PhotoService
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -89,6 +89,7 @@ except Exception as error:  # never block startup on a cache migration problem
     print(f'Filey cache migration skipped: {error}', flush=True)
 photos = PhotoService(media)
 audio = AudioService(media)
+audio_state = {'synced': False}  # first listing indexes tags of tracks added before v3.2.1
 
 
 UUID_PATTERN = re.compile(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')
@@ -536,6 +537,8 @@ def library_scan():
     if category_id not in media.categories:
         return jsonify({'error': 'category not found'}), 404
     added = media.scan(category_id)
+    if category_id == 'music':
+        audio.sync_all()
     return jsonify({'success': True, 'category': category_id, 'added': added})
 
 
@@ -545,7 +548,25 @@ def categories_scan(category_id):
     if category_id not in media.categories:
         return jsonify({'error': 'category not found'}), 404
     added = media.scan(category_id)
+    if category_id == 'music':
+        audio.sync_all()
     return jsonify({'success': True, 'added': added})
+
+
+@app.get('/api/library/audio/facets')
+@auth.require('files.read')
+def audio_facets():
+    if not audio_state['synced']:
+        audio_state['synced'] = True
+        audio.sync_all()
+    return jsonify(media.audio_facets())
+
+
+@app.post('/api/library/audio/rescan')
+@auth.require('library.manage')
+def audio_rescan():
+    force = request.args.get('force') == 'true'
+    return jsonify({'success': True, 'scanned': audio.sync_all(force=force)})
 
 
 @app.post('/api/stats')
@@ -605,10 +626,16 @@ def list_files():
     sort = request.args.get('sort', 'default')
     media_type = request.args.get('type') or None
     query = request.args.get('q', '').strip()
+    if media_type in (None, 'music') and not audio_state['synced']:
+        audio_state['synced'] = True
+        audio.sync_all()
     if query:
         records = media.sort_records(media.search(query, media_type), sort)
     else:
         records = media.read_sorted(media_type, sort)
+    tag_filters = {key: request.args.get(key) for key in AUDIO_FILTERS if request.args.get(key)}
+    if tag_filters:
+        records = media.filter_records(records, tag_filters)
     records = [media.public_record(item) for item in records]
     files, total = media.paginate(records, page, per_page)
     return jsonify({'files': files, 'total': total, 'page': page,

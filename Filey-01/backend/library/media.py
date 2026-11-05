@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 from backend.core import config as app_config
 from backend.library import search as media_search
 
-AUDIO_SORTS = {'artist': 'artist', 'genre': 'genre', 'album': 'album', 'year': 'year'}
+AUDIO_FILTERS = ('artist', 'album', 'genre', 'theme', 'year')
 
 
 class MediaLibrary:
@@ -133,10 +133,10 @@ class MediaLibrary:
                 file_type = data.get('media_type') or data.get('category') or media_type
                 original_name = data.get('file_name', pointer_path.stem)
                 spec = self.categories.get(file_type, {})
-                audio = data.get('audio') if isinstance(data.get('audio'), dict) else {}
+                audio_fields = self._audio_fields(file_type, data)
                 files.append({
                     'id': pointer_path.stem,
-                    'name': data.get('name') or original_name,
+                    'name': self._display_name(data, original_name, audio_fields),
                     'originalName': original_name,
                     'type': file_type,
                     'category': file_type,
@@ -155,42 +155,53 @@ class MediaLibrary:
                     'sourceRoot': data.get('source_root'),
                     'pointerPath': str(pointer_path),
                     'exists': source.is_file(),
-                    **self._audio_fields(file_type, audio),
+                    **audio_fields,
                 })
         self._scanned = files
         return list(self._scanned)
 
     @staticmethod
-    def _audio_fields(file_type, audio):
+    def _audio_fields(file_type, data):
+        """Effective audio tags: the user's own edits win over tags embedded in the file."""
         if file_type != 'music':
             return {}
-        return {
-            'artist': audio.get('artist') or '',
-            'album': audio.get('album') or '',
-            'genre': audio.get('genre') or '',
-            'theme': audio.get('theme') or '',
-            'year': audio.get('year') or None,
-            'hasCover': bool(audio.get('cover')),
-            'hasLyrics': bool(audio.get('lyrics')),
-        }
+        overrides = data.get('audio') if isinstance(data.get('audio'), dict) else {}
+        embedded = data.get('embedded') if isinstance(data.get('embedded'), dict) else {}
+        assets = data.get('assets') if isinstance(data.get('assets'), dict) else {}
+        fields = {key: (overrides[key] if key in overrides else embedded.get(key)) or ''
+                  for key in ('artist', 'album', 'genre', 'theme')}
+        fields['year'] = (overrides['year'] if 'year' in overrides else embedded.get('year')) or None
+        fields['hasCover'] = assets.get('cover') in ('user', 'embedded')
+        fields['hasLyrics'] = assets.get('lyrics') in ('user', 'file', 'embedded')
+        fields['embeddedTitle'] = embedded.get('title') or ''
+        return fields
 
-    def update_audio(self, file_id, fields):
-        """Merge audio tag fields into a record's pointer file; falsy values clear a field."""
+    @staticmethod
+    def _display_name(data, original_name, audio_fields):
+        """A renamed record keeps its name; otherwise the embedded title is the default."""
+        name = data.get('name') or original_name
+        title = audio_fields.get('embeddedTitle')
+        if title and name in {original_name, Path(original_name).stem}:
+            return title
+        return name
+
+    def edit_pointer(self, file_id, mutate):
+        """Load a record's pointer file, apply ``mutate(pointer)`` and write it back."""
         record = self.find(file_id)
         if not record:
             return None
         pointer_path = Path(record['pointerPath'])
         pointer = json.loads(pointer_path.read_text(encoding='utf-8'))
-        audio = pointer.get('audio') if isinstance(pointer.get('audio'), dict) else {}
-        for key, value in fields.items():
-            if value in (None, '', False):
-                audio.pop(key, None)
-            else:
-                audio[key] = value
-        pointer['audio'] = audio
+        mutate(pointer)
         pointer_path.write_text(json.dumps(pointer, indent=2), encoding='utf-8')
         self._invalidate()
         return self.find(file_id)
+
+    def pointer_data(self, file_id):
+        record = self.find(file_id)
+        if not record:
+            return None
+        return json.loads(Path(record['pointerPath']).read_text(encoding='utf-8'))
 
     def read_sorted(self, media_type=None, sort='default'):
         """Return records filtered by media_type (None = all), sorted and cached per (type, sort)."""
@@ -282,19 +293,35 @@ class MediaLibrary:
             ordered.sort(key=lambda r: r.get('sizeBytes') or 0)
         elif mode == 'size_desc':
             ordered.sort(key=lambda r: r.get('sizeBytes') or 0, reverse=True)
-        elif mode in AUDIO_SORTS:
-            field = AUDIO_SORTS[mode]
-            if field == 'year':
-                # Untagged tracks go last in either direction of the year sort.
-                ordered.sort(key=lambda r: (r.get('year') is None, r.get('year') or 0, (r.get('name') or '').lower()))
-            else:
-                ordered.sort(key=lambda r: (not r.get(field), (r.get(field) or '').lower(),
-                                            (r.get('name') or '').lower()))
         elif mode == 'type':
             ordered.sort(key=lambda r: (r.get('type') or '', r.get('name') or ''))
         else:
             ordered.sort(key=lambda r: r.get('timeAdded') or '', reverse=True)
         return ordered
+
+    @staticmethod
+    def filter_records(records, filters):
+        """Keep music records whose tags equal every given filter value (case-insensitive)."""
+        wanted = {key: str(value).strip().lower() for key, value in (filters or {}).items()
+                  if key in AUDIO_FILTERS and str(value).strip()}
+        if not wanted:
+            return list(records)
+        return [r for r in records
+                if all(str(r.get(key) or '').strip().lower() == value for key, value in wanted.items())]
+
+    def audio_facets(self):
+        """Distinct tag values (with track counts) available as music filters."""
+        facets = {key: {} for key in AUDIO_FILTERS}
+        for record in self.read_files():
+            if record['type'] != 'music':
+                continue
+            for key in AUDIO_FILTERS:
+                value = str(record.get(key) or '').strip()
+                if value:
+                    entry = facets[key].setdefault(value.lower(), [value, 0])
+                    entry[1] += 1
+        return {key: [{'value': v, 'count': c} for v, c in sorted(items.values(), key=lambda i: i[0].lower())]
+                for key, items in facets.items()}
 
     @staticmethod
     def paginate(records, page=1, per_page=24):

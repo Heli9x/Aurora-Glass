@@ -6,6 +6,7 @@ Embedded tags (ID3, MP4, Vorbis, FLAC) are read through mutagen when it is
 installed; without it uploads still work and tags can be entered manually.
 """
 
+import base64
 import json
 import re
 import shutil
@@ -50,6 +51,25 @@ def sniff_image(data):
     return None
 
 
+def _first(value):
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else ''
+    return value
+
+
+def _vorbis_cover(tags):
+    """Ogg Vorbis/Opus/FLAC-in-Ogg store covers as base64 FLAC picture blocks."""
+    try:
+        from mutagen.flac import Picture
+        for encoded in tags.get('metadata_block_picture', []):
+            picture = Picture(base64.b64decode(encoded))
+            if picture.data:
+                return bytes(picture.data)
+    except Exception:
+        pass
+    return None
+
+
 def read_embedded(path):
     """Return tags, cover bytes and lyrics embedded in an audio file (best effort)."""
     result = {}
@@ -63,40 +83,49 @@ def read_embedded(path):
     if full is None:
         # MP3s with unusual audio frames still carry readable ID3 tags.
         try:
-            from mutagen.id3 import ID3
             from mutagen.easyid3 import EasyID3
+            from mutagen.id3 import ID3
             full = type('Tagged', (), {'tags': ID3(path), 'pictures': None})()
             easy = type('Tagged', (), {'tags': EasyID3(path)})()
         except Exception:
             return result
-    if easy and easy.tags:
-        def first(key):
+
+    if easy is not None and easy.tags:
+        def tag(key):
             try:
-                values = easy.tags.get(key)
+                return clean_text(_first(easy.tags.get(key)))
             except Exception:
                 return ''
-            return clean_text(values[0]) if values else ''
-        result.update({'title': first('title'), 'artist': first('artist'), 'album': first('album'),
-                       'genre': first('genre'), 'year': clean_year(first('date'))})
+        values = {'title': tag('title'), 'artist': tag('artist') or tag('albumartist'),
+                  'album': tag('album'), 'genre': tag('genre'), 'year': clean_year(tag('date'))}
+        result.update({key: value for key, value in values.items() if value})
+
     tags = full.tags
     try:
         if hasattr(tags, 'getall'):
             pictures = tags.getall('APIC')
             if pictures:
                 result['cover'] = bytes(pictures[0].data)
-            lyric_frames = tags.getall('USLT')
-            if lyric_frames:
-                result['lyrics'] = str(lyric_frames[0].text)
-        elif getattr(full, 'pictures', None):
-            result['cover'] = bytes(full.pictures[0].data)
-        if tags is not None and 'covr' in tags and tags['covr']:
-            result['cover'] = bytes(tags['covr'][0])
-        if tags is not None and '\xa9lyr' in tags and tags['\xa9lyr']:
-            result['lyrics'] = str(tags['\xa9lyr'][0])
-        if tags is not None and 'lyrics' in tags and tags['lyrics']:
-            result['lyrics'] = str(tags['lyrics'][0])
+            frames = tags.getall('USLT')
+            if frames:
+                result['lyrics'] = str(frames[0].text)
+        else:
+            if getattr(full, 'pictures', None):
+                result['cover'] = bytes(full.pictures[0].data)
+            elif tags is not None and 'covr' in tags and tags['covr']:
+                result['cover'] = bytes(tags['covr'][0])
+            elif tags is not None:
+                cover = _vorbis_cover(tags)
+                if cover:
+                    result['cover'] = cover
+            for key in ('\xa9lyr', 'lyrics', 'unsyncedlyrics'):
+                if tags is not None and key in tags and tags[key]:
+                    result['lyrics'] = str(_first(tags[key]))
+                    break
     except Exception:
         pass
+    if result.get('lyrics', '').strip() == '':
+        result.pop('lyrics', None)
     return result
 
 
@@ -130,25 +159,45 @@ class AudioService:
     # -- metadata -----------------------------------------------------------
 
     def set_metadata(self, file_id, payload):
-        """Update artist, album, genre, theme and release year; None when not found."""
+        """Record the user's tag edits; a value equal to the embedded default follows it again."""
         record = self._music_record(file_id)
         if not record:
             return None
-        fields = {}
+        changes = {}
         for key in TEXT_FIELDS:
             if key in payload:
-                fields[key] = clean_text(payload[key])
+                changes[key] = clean_text(payload[key])
         if 'year' in payload:
-            fields['year'] = clean_year(payload['year'])
-        if fields:
-            self.media.update_audio(file_id, fields)
+            changes['year'] = clean_year(payload['year'])
+
+        def mutate(pointer):
+            embedded = pointer.get('embedded') or {}
+            overrides = pointer.get('audio') if isinstance(pointer.get('audio'), dict) else {}
+            for key, value in changes.items():
+                default = embedded.get(key)
+                if value == (default if key == 'year' else (default or '')) or (value in ('', None) and default is None):
+                    overrides.pop(key, None)
+                else:
+                    overrides[key] = value
+            pointer['audio'] = overrides
+        if changes:
+            self.media.edit_pointer(file_id, mutate)
         return self.media.find(file_id)
+
+    def _set_asset(self, file_id, **states):
+        def mutate(pointer):
+            assets = pointer.get('assets') if isinstance(pointer.get('assets'), dict) else {}
+            assets.update(states)
+            pointer['assets'] = assets
+        self.media.edit_pointer(file_id, mutate)
+
+    def _asset_state(self, file_id, name):
+        pointer = self.media.pointer_data(file_id) or {}
+        return (pointer.get('assets') or {}).get(name)
 
     # -- cover --------------------------------------------------------------
 
-    def set_cover(self, file_id, data):
-        if not self._music_record(file_id):
-            return None
+    def _write_cover(self, file_id, data):
         if not data or len(data) > MAX_COVER_BYTES:
             raise ValueError('cover image must be under 8 MB')
         mime = sniff_image(data)
@@ -159,7 +208,12 @@ class AudioService:
         for old in directory.glob('cover.*'):
             old.unlink(missing_ok=True)
         (directory / f'cover{COVER_TYPES[mime]}').write_bytes(data)
-        self.media.update_audio(file_id, {'cover': True})
+
+    def set_cover(self, file_id, data):
+        if not self._music_record(file_id):
+            return None
+        self._write_cover(file_id, data)
+        self._set_asset(file_id, cover='user')
         return self.media.find(file_id)
 
     def remove_cover(self, file_id):
@@ -167,7 +221,7 @@ class AudioService:
             return None
         for old in self.assets_dir(file_id).glob('cover.*'):
             old.unlink(missing_ok=True)
-        self.media.update_audio(file_id, {'cover': False})
+        self._set_asset(file_id, cover='removed')
         return self.media.find(file_id)
 
     # -- lyrics -------------------------------------------------------------
@@ -184,51 +238,100 @@ class AudioService:
         except (OSError, json.JSONDecodeError, lyrics_lib.LyricsError):
             return []
 
-    def set_lyrics(self, file_id, source, fmt='auto', source_label='user'):
-        """Adapt user supplied lyrics (rows, JSON, LRC or text); empty input clears them."""
-        if not self._music_record(file_id):
-            return None
-        rows = lyrics_lib.parse(source, fmt)
+    def _store_lyrics(self, file_id, rows):
         path = self._lyrics_path(file_id)
         if rows:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(rows, ensure_ascii=False), encoding='utf-8')
         else:
             path.unlink(missing_ok=True)
-        self.media.update_audio(file_id, {'lyrics': source_label if rows else ''})
+
+    def set_lyrics(self, file_id, source, fmt='auto', source_label='user'):
+        """Adapt user supplied lyrics (rows, JSON, LRC or text); empty input clears them."""
+        if not self._music_record(file_id):
+            return None
+        rows = lyrics_lib.parse(source, fmt)
+        state = self._asset_state(file_id, 'lyrics')
+        if rows and state == 'embedded' and rows == self.get_lyrics(file_id):
+            return rows  # saved unchanged: keep following the embedded lyrics
+        self._store_lyrics(file_id, rows)
+        if rows:
+            self._set_asset(file_id, lyrics=source_label)
+        elif state in ('user', 'file', 'embedded'):
+            self._set_asset(file_id, lyrics='removed')
         return rows
+
+    # -- embedded defaults --------------------------------------------------
+
+    def sync_embedded(self, file_id, force=False):
+        """Read tags, cover and lyrics from the file and store them as defaults.
+
+        Anything the user set or removed is left alone; only the defaults move.
+        Returns True when the file was (re)scanned.
+        """
+        if mutagen is None:
+            # Nothing can be read, so do not mark the track as scanned.
+            return False
+        record = self._music_record(file_id)
+        if not record:
+            return False
+        pointer = self.media.pointer_data(file_id) or {}
+        # A scan that found nothing is retried, since it may have been run without a tag reader.
+        if pointer.get('embedded_scanned') and pointer.get('embedded') and not force:
+            return False
+        data = read_embedded(self.media.source_path(record))
+        assets = pointer.get('assets') or {}
+
+        if data.get('cover') and assets.get('cover') not in ('user', 'removed'):
+            try:
+                self._write_cover(file_id, data['cover'])
+                self._set_asset(file_id, cover='embedded')
+            except ValueError:
+                pass
+        if data.get('lyrics') and assets.get('lyrics') not in ('user', 'file', 'removed'):
+            try:
+                rows = lyrics_lib.parse(data['lyrics'])
+            except lyrics_lib.LyricsError:
+                rows = []
+            if rows:
+                self._store_lyrics(file_id, rows)
+                self._set_asset(file_id, lyrics='embedded')
+
+        embedded = {key: value for key, value in data.items() if key not in ('cover', 'lyrics')}
+
+        def mutate(pointer):
+            pointer['embedded'] = embedded
+            pointer['embedded_scanned'] = True
+        self.media.edit_pointer(file_id, mutate)
+        return True
+
+    def sync_all(self, force=False):
+        """Scan every music record not yet scanned (or all with ``force``); returns the count."""
+        scanned = 0
+        for record in self.media.read_files():
+            if record['type'] == 'music' and record['exists'] and self.sync_embedded(record['id'], force):
+                scanned += 1
+        return scanned
 
     # -- upload -------------------------------------------------------------
 
     def ingest_upload(self, record, form, files):
-        """Apply tags, cover and lyrics given at upload time, falling back to embedded data.
-
-        Explicit user input always wins; a missing cover or lyrics is simply
-        left empty so it can be added later.
-        """
+        """Apply embedded defaults, then anything the user gave explicitly at upload."""
         file_id = record['id']
-        embedded = read_embedded(self.media.source_path(record))
-        fields = {}
-        for key in TEXT_FIELDS:
-            value = clean_text(form.get(key)) or embedded.get(key, '')
-            if value:
-                fields[key] = value
-        year = clean_year(form.get('year')) or embedded.get('year')
-        if year:
-            fields['year'] = year
-        if fields:
-            self.media.update_audio(file_id, fields)
-
+        self.sync_embedded(file_id)
         warnings = []
+
+        explicit = {key: form.get(key) for key in (*TEXT_FIELDS, 'year') if form.get(key)}
+        if explicit:
+            self.set_metadata(file_id, explicit)
+
         cover_upload = files.get('cover')
         cover_data = cover_upload.read(MAX_COVER_BYTES + 1) if cover_upload and cover_upload.filename else b''
-        try:
-            if cover_data:
+        if cover_data:
+            try:
                 self.set_cover(file_id, cover_data)
-            elif embedded.get('cover'):
-                self.set_cover(file_id, embedded['cover'])
-        except ValueError as error:
-            warnings.append(str(error))
+            except ValueError as error:
+                warnings.append(str(error))
 
         lyrics_text, label = '', 'user'
         lyrics_upload = files.get('lyrics_file')
@@ -240,8 +343,6 @@ class AudioService:
                 lyrics_text, label = raw.decode('utf-8', errors='replace'), 'file'
         elif (form.get('lyrics') or '').strip():
             lyrics_text = form['lyrics']
-        elif embedded.get('lyrics'):
-            lyrics_text, label = embedded['lyrics'], 'embedded'
         if lyrics_text.strip():
             try:
                 self.set_lyrics(file_id, lyrics_text, source_label=label)
