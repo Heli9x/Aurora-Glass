@@ -70,6 +70,21 @@ def _vorbis_cover(tags):
     return None
 
 
+def _synced_lyrics(frames):
+    """Turn an ID3 SYLT (synchronised lyrics) frame into LRC text, or '' when unusable."""
+    for frame in frames:
+        if getattr(frame, 'format', 2) != 2:
+            continue  # timestamps in MPEG frames cannot be converted without the audio layout
+        lines = []
+        for text, millis in frame.text:
+            text = text.replace('\r', '').strip()
+            if text:
+                lines.append(f'[{int(millis // 60000):02d}:{(millis % 60000) / 1000:05.2f}]{text}')
+        if lines:
+            return '\n'.join(lines)
+    return ''
+
+
 def read_embedded(path):
     """Return tags, cover bytes and lyrics embedded in an audio file (best effort)."""
     result = {}
@@ -80,12 +95,20 @@ def read_embedded(path):
         full = mutagen.File(path)
     except Exception:
         easy = full = None
+    length = getattr(getattr(full, 'info', None), 'length', None)
+    if isinstance(length, (int, float)) and length > 0:
+        result['duration'] = float(length)
     if full is None:
         # MP3s with unusual audio frames still carry readable ID3 tags.
         try:
             from mutagen.easyid3 import EasyID3
             from mutagen.id3 import ID3
             full = type('Tagged', (), {'tags': ID3(path), 'pictures': None})()
+            try:
+                from mutagen.mp3 import MP3
+                result['duration'] = float(MP3(path).info.length)
+            except Exception:
+                pass
             easy = type('Tagged', (), {'tags': EasyID3(path)})()
         except Exception:
             return result
@@ -106,9 +129,14 @@ def read_embedded(path):
             pictures = tags.getall('APIC')
             if pictures:
                 result['cover'] = bytes(pictures[0].data)
-            frames = tags.getall('USLT')
-            if frames:
-                result['lyrics'] = str(frames[0].text)
+            lyrics_text = _synced_lyrics(tags.getall('SYLT'))
+            if not lyrics_text:
+                texts = [str(frame.text) for frame in tags.getall('USLT') if str(frame.text).strip()]
+                # Prefer a frame carrying [mm:ss] stamps over a plain-text one.
+                lyrics_text = next((text for text in texts if '[' in text and lyrics_lib.has_stamps(text)),
+                                   texts[0] if texts else '')
+            if lyrics_text:
+                result['lyrics'] = lyrics_text
         else:
             if getattr(full, 'pictures', None):
                 result['cover'] = bytes(full.pictures[0].data)
@@ -127,6 +155,10 @@ def read_embedded(path):
     if result.get('lyrics', '').strip() == '':
         result.pop('lyrics', None)
     return result
+
+
+# Bump when scanning changes so existing tracks pick up the better defaults once.
+SCAN_REVISION = 2
 
 
 class AudioService:
@@ -238,6 +270,19 @@ class AudioService:
         except (OSError, json.JSONDecodeError, lyrics_lib.LyricsError):
             return []
 
+    def duration(self, file_id):
+        """Length of the audio in seconds (cached beside the tags), or None when unknown."""
+        record = self._music_record(file_id)
+        if not record:
+            return None
+        pointer = self.media.pointer_data(file_id) or {}
+        if pointer.get('duration'):
+            return pointer['duration']
+        length = read_embedded(self.media.source_path(record)).get('duration')
+        if length:
+            self.media.edit_pointer(file_id, lambda data: data.__setitem__('duration', length))
+        return length
+
     def _store_lyrics(self, file_id, rows):
         path = self._lyrics_path(file_id)
         if rows:
@@ -250,7 +295,7 @@ class AudioService:
         """Adapt user supplied lyrics (rows, JSON, LRC or text); empty input clears them."""
         if not self._music_record(file_id):
             return None
-        rows = lyrics_lib.parse(source, fmt)
+        rows = lyrics_lib.parse(source, fmt, duration=self.duration(file_id))
         state = self._asset_state(file_id, 'lyrics')
         if rows and state == 'embedded' and rows == self.get_lyrics(file_id):
             return rows  # saved unchanged: keep following the embedded lyrics
@@ -277,7 +322,7 @@ class AudioService:
             return False
         pointer = self.media.pointer_data(file_id) or {}
         # A scan that found nothing is retried, since it may have been run without a tag reader.
-        if pointer.get('embedded_scanned') and pointer.get('embedded') and not force:
+        if pointer.get('embedded_scanned') == SCAN_REVISION and pointer.get('embedded') and not force:
             return False
         data = read_embedded(self.media.source_path(record))
         assets = pointer.get('assets') or {}
@@ -290,18 +335,20 @@ class AudioService:
                 pass
         if data.get('lyrics') and assets.get('lyrics') not in ('user', 'file', 'removed'):
             try:
-                rows = lyrics_lib.parse(data['lyrics'])
+                rows = lyrics_lib.parse(data['lyrics'], duration=data.get('duration'))
             except lyrics_lib.LyricsError:
                 rows = []
             if rows:
                 self._store_lyrics(file_id, rows)
                 self._set_asset(file_id, lyrics='embedded')
 
-        embedded = {key: value for key, value in data.items() if key not in ('cover', 'lyrics')}
+        embedded = {key: value for key, value in data.items() if key not in ('cover', 'lyrics', 'duration')}
 
         def mutate(pointer):
             pointer['embedded'] = embedded
-            pointer['embedded_scanned'] = True
+            if data.get('duration'):
+                pointer['duration'] = data['duration']
+            pointer['embedded_scanned'] = SCAN_REVISION
         self.media.edit_pointer(file_id, mutate)
         return True
 

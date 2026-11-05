@@ -13,6 +13,21 @@ Music records gain tags, a cover image and synced lyrics, wired to the
   the file (ID3/MP4/Vorbis/FLAC) when `mutagen` is installed.
 - **Cover:** uploaded with the file, taken from the embedded picture, or added
   later (`PUT/DELETE /api/files/<id>/cover`, `GET` to read). Optional.
+- **Lyrics rows are read tolerantly:** `[text, speed, delay]` rows are extracted
+  from JSON, trailing commas, single quotes, tuples, `lyrics = [...]`
+  assignments, comments, missing commas/brackets, BOMs and smart quotes. The
+  server (`backend/audio/lyrics.py`) and wizard (`static/js/music/lyrics.js`)
+  share the same rules.
+- **Full screen:** the player header has a full-screen button. It fills the
+  window (and asks the browser for real full screen); Esc, minimize or close
+  leaves it. Lyrics and the cover scale up to use the space.
+- **Lyrics timing:** plain-text lyrics (pasted, uploaded or embedded) are spread
+  over the song's length by line length, with extra room at blank lines; the
+  wizard has an "Auto-estimate timing" button. Embedded synced lyrics (ID3
+  `SYLT`) are used before unsynced ones, stamped `USLT` beats plain `USLT`, and
+  LRC `[offset:+n]` now shows lines sooner as the format specifies. Existing
+  tracks are rescanned once (`SCAN_REVISION`). `GET /api/files/<id>/lyrics`
+  also returns `duration`.
 - **Lyrics:** a lyrics file or pasted text at upload, embedded lyrics, or added
   later (`GET/PUT /api/files/<id>/lyrics`). Plain text, LRC and JSON are
   adapted to the stored row format `[text, speed, delay]` (speed = seconds per

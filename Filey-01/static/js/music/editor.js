@@ -1,4 +1,5 @@
-import { normalizeSource } from './lyrics.js';
+import { probeDuration } from './duration.js';
+import { detectFormat, estimateRows, normalizeSource } from './lyrics.js';
 
 const DEFAULT_SPEED = 0.08;
 
@@ -35,6 +36,7 @@ export class AudioEditor {
         this.onSaved = onSaved;
         this.modal = new ModalClass('audio-editor-dialog', () => this.revokePreview());
         this.file = null;
+        this.durationReady = Promise.resolve();
         this.step = 0;
         this.build();
     }
@@ -116,12 +118,15 @@ export class AudioEditor {
         const loadFile = el('button', { type: 'button', text: 'Load a lyrics file' });
         loadFile.addEventListener('click', () => this.lyricsFile.click());
         this.rowsBody = el('div', { class: 'wiz-rows' });
+        const estimate = el('button', { type: 'button', text: 'Auto-estimate timing' });
+        estimate.title = 'Spread the lines over the length of the song';
+        estimate.addEventListener('click', () => this.autoEstimate());
         const addRow = el('button', { type: 'button', text: '+ Add line' });
         addRow.addEventListener('click', () => this.addRow(['', DEFAULT_SPEED, this.nextStart()], true));
         this.rowCount = el('p', { class: 'wiz-hint' });
         panels.lyrics = el('div', { class: 'wiz-panel' }, [
             this.importText,
-            el('div', { class: 'wiz-inline' }, [convert, loadFile, this.lyricsFile]),
+            el('div', { class: 'wiz-inline' }, [convert, loadFile, estimate, this.lyricsFile]),
             el('p', { class: 'wiz-hint', text: 'Each line has text, a speed (seconds per character) and the second it starts.' }),
             this.rowsBody, addRow, this.rowCount
         ]);
@@ -226,8 +231,8 @@ export class AudioEditor {
 
     addRow([text, speed, start], focus = false){
         const textInput = el('input', { type: 'text', value: text, maxLength: 500, placeholder: 'Lyric line', 'aria-label': 'Lyric line' });
-        const speedInput = el('input', { type: 'number', value: speed, min: '0.01', step: '0.01', 'aria-label': 'Speed (seconds per character)', title: 'Speed (s/char)' });
-        const startInput = el('input', { type: 'number', value: start, min: '0', step: '0.1', 'aria-label': 'Start (seconds)', title: 'Start (s)' });
+        const speedInput = el('input', { type: 'number', value: speed, min: '0.01', step: 'any', 'aria-label': 'Speed (seconds per character)', title: 'Speed (s/char)' });
+        const startInput = el('input', { type: 'number', value: start, min: '0', step: 'any', 'aria-label': 'Start (seconds)', title: 'Start (s)' });
         const remove = el('button', { type: 'button', class: 'wiz-link', text: '×', 'aria-label': 'Remove line' });
         const row = el('div', { class: 'wiz-row' }, [textInput, speedInput, startInput, remove]);
         remove.addEventListener('click', () => { row.remove(); this.updateRowCount(); });
@@ -257,8 +262,23 @@ export class AudioEditor {
         return rows.sort((a, b) => a[2] - b[2]);
     }
 
+    async autoEstimate(){
+        await this.durationReady;
+        const lines = this.readRows().map(([text]) => ({ text, gap: false }));
+        if (!lines.length){
+            this.setStatus('Add some lyric lines first.');
+            return;
+        }
+        if (!(this.duration > 0)){
+            this.setStatus('The song length is unknown, so timing cannot be estimated.');
+            return;
+        }
+        this.setRows(estimateRows(lines, this.duration));
+        this.setStatus('Timing estimated from the song length. Fine-tune any line that is off.');
+    }
+
     convert(source){
-        const { lines } = normalizeSource(source, 'auto');
+        const { lines } = normalizeSource(source, 'auto', { duration: this.duration });
         return lines.map((line) => [
             line.text,
             Number.isFinite(line.charDuration) ? line.charDuration : DEFAULT_SPEED,
@@ -266,13 +286,20 @@ export class AudioEditor {
         ]);
     }
 
-    importPasted(){
+    async importPasted(){
         const source = this.importText.value.trim();
         if (!source) return;
+        await this.durationReady;
+        const labels = { json: 'lyrics JSON', lrc: 'LRC', text: 'plain text' };
         try {
-            this.setRows(this.convert(source));
+            const rows = this.convert(source);
+            if (!rows.length){
+                this.setStatus('No lyric lines found. Check the format: ["line", speed, delay] rows, LRC, or plain lines.');
+                return;
+            }
+            this.setRows(rows);
             this.importText.value = '';
-            this.setStatus('Lyrics converted. Adjust the timing if needed.');
+            this.setStatus(`Read ${rows.length} line${rows.length === 1 ? '' : 's'} as ${labels[detectFormat(source)] || 'lyrics'}. Adjust the timing if needed.`);
         } catch (error){
             this.setStatus('Could not read those lyrics.');
         }
@@ -301,17 +328,23 @@ export class AudioEditor {
         this.setRows([]);
         this.lyricsReady = Promise.resolve();
         this.lyricsLoaded = !file.hasLyrics;
+        this.duration = 0;
         this.go(0);
         this.modal.open();
-        if (file.hasLyrics){
-            this.lyricsReady = this.apiFetch(`${this.apiBase}/files/${file.id}/lyrics`)
-                .then(async (response) => {
-                    if (!response.ok || this.file !== file) return;
-                    this.setRows((await response.json()).lyrics || []);
+        this.durationReady = probeDuration(`${this.apiBase}/files/${file.id}/stream`).then((seconds) => {
+            if (this.file === file && !(this.duration > 0)) this.duration = seconds;
+        });
+        this.lyricsReady = this.apiFetch(`${this.apiBase}/files/${file.id}/lyrics`)
+            .then(async (response) => {
+                if (!response.ok || this.file !== file) return;
+                const data = await response.json();
+                if (Number(data.duration) > 0) this.duration = Number(data.duration);
+                if (file.hasLyrics){
+                    this.setRows(data.lyrics || []);
                     this.lyricsLoaded = true;
-                })
-                .catch(() => {});
-        }
+                }
+            })
+            .catch(() => {});
     }
 
     async request(path, options){

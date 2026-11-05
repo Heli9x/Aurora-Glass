@@ -1,3 +1,4 @@
+import { probeDuration } from './duration.js';
 function formatTime(value) {
     const total = Math.max(0, Math.floor(Number(value) || 0));
     const minutes = Math.floor(total / 60);
@@ -170,6 +171,13 @@ export class PlaylistView {
         const duration = document.createElement('span');
         duration.className = 'playlist-duration';
         duration.textContent = formatTime(track.duration);
+        if (!(track.duration > 0)) {
+            probeDuration(track.audio).then((seconds) => {
+                if (!seconds) return;
+                track.duration = seconds;
+                duration.textContent = formatTime(seconds);
+            });
+        }
 
         const remove = document.createElement('button');
         remove.type = 'button';

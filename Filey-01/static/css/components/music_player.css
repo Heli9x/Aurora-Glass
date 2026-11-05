@@ -456,6 +456,72 @@
     text-align: center;
 }
 
+/* Full screen: the player fills the viewport and the lyrics get the space. */
+.modal-backdrop.is-fullscreen {
+    padding: 0;
+    background: #000;
+}
+
+.filey-music-dialog.is-fullscreen {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    padding: 0;
+    overflow: hidden;
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    margin: 0;
+    padding: clamp(12px, 3vw, 40px);
+    border-radius: 0;
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player header.actions {
+    padding-right: 44px;
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player .profile {
+    grid-template-columns: clamp(120px, 22vh, 240px) minmax(0, 1fr);
+    gap: clamp(14px, 3vw, 32px);
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player .profile .cover {
+    width: clamp(120px, 22vh, 240px);
+    height: clamp(120px, 22vh, 240px);
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player .details .title {
+    font-size: clamp(1.4rem, 3.4vw, 2.6rem);
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player .details .artist {
+    font-size: clamp(1rem, 1.8vw, 1.4rem);
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player .lyrics-wrap {
+    flex: 1 1 auto;
+    max-height: none;
+    min-height: 0;
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player .lyric-line {
+    font-size: clamp(1rem, 2.2vw, 1.6rem);
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player .lyric-line.active {
+    font-size: clamp(1.4rem, 3.4vw, 2.6rem);
+}
+
+.filey-music-dialog.is-fullscreen .filey-music-player .controls {
+    width: min(100%, 900px);
+    margin: 0 auto;
+}
+
 @media (max-width: 460px) {
     .filey-music-dialog {
         padding: 8px;

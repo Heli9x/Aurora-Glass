@@ -58,6 +58,9 @@ export class FileyMusicPlayer {
         this.wrapper.innerHTML = `
             <header class="actions">
                 <div class="group-btn">
+                    <button class="fullscreen" id="fileyFullscreen" type="button" aria-label="Enter full screen" aria-pressed="false" title="Full screen">
+                        <i class="ri-fullscreen-line"></i>
+                    </button>
                     <button class="minimize" id="fileyMinimize" type="button" aria-label="Minimize to dock" title="Minimize to dock">
                         <i class="ri-subtract-line"></i>
                     </button>
@@ -138,6 +141,12 @@ export class FileyMusicPlayer {
             apiBase: this.apiBase,
             ModalClass,
             onSaved: (file) => this._handleEdited(file)
+        });
+        this.fullscreenButton = this.wrapper.querySelector('#fileyFullscreen');
+        this.fullscreenButton.addEventListener('click', () => this.toggleFullscreen());
+        document.addEventListener('fullscreenchange', () => {
+            // Leaving through the browser (Esc) must also leave the player's full-screen layout.
+            if (!document.fullscreenElement && this.fullscreen) this.setFullscreen(false);
         });
         this.wrapper.querySelector('#fileyMinimize').addEventListener('click', () => this.minimize());
         this.wrapper.querySelector('#fileyEditTrack').addEventListener('click', () => {
@@ -226,7 +235,32 @@ export class FileyMusicPlayer {
         this.modal.close();
     }
 
+    get fullscreen(){
+        return this.modal.dialog.classList.contains('is-fullscreen');
+    }
+
+    toggleFullscreen(){
+        return this.setFullscreen(!this.fullscreen);
+    }
+
+    // Always fills the viewport; also asks the browser for real full screen when it allows it.
+    async setFullscreen(on){
+        this.modal.dialog.classList.toggle('is-fullscreen', on);
+        this.modal.backdrop.classList.toggle('is-fullscreen', on);
+        this.fullscreenButton.setAttribute('aria-pressed', String(on));
+        this.fullscreenButton.setAttribute('aria-label', on ? 'Exit full screen' : 'Enter full screen');
+        this.fullscreenButton.title = on ? 'Exit full screen' : 'Full screen';
+        this.fullscreenButton.firstElementChild.className = on ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line';
+        try {
+            if (on && !document.fullscreenElement) await this.modal.backdrop.requestFullscreen?.();
+            else if (!on && document.fullscreenElement) await document.exitFullscreen();
+        } catch (error) {
+            // The layout still fills the window when the browser refuses real full screen.
+        }
+    }
+
     minimize(){
+        if (this.fullscreen) this.setFullscreen(false);
         this.playlistView?.close();
         this.modal.minimize();
         window.mediaDock?.setExpanded(null);
@@ -242,6 +276,7 @@ export class FileyMusicPlayer {
         this.playlistView?.close();
         this.controls?.stop();
         this.currentTrack = null;
+        if (this.fullscreen) this.setFullscreen(false);
         this.modal.minimize();
         window.mediaDock?.remove(DOCK_ID);
     }
@@ -363,6 +398,7 @@ export class FileyMusicPlayer {
     }
 
     _handleClose(){
+        if (this.fullscreen) this.setFullscreen(false);
         this.playlistView?.close();
         window.mediaDock?.setExpanded(null);
     }

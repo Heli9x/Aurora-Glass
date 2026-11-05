@@ -83,44 +83,97 @@ export function parseLRC(source) {
     return normalizeLines(entries, meta);
 }
 
-export function fromText(source, { start = 0, gap = 4 } = {}) {
+const LEAD_RATIO = 0.06;
+const TAIL_RATIO = 0.05;
+const MAX_LEAD = 15;
+const LINE_PAUSE = 12;
+const STANZA_PAUSE = 40;
+const HEADER_WEIGHT = 2;
+const MIN_SPEED = 0.02;
+const MAX_SPEED = 0.4;
+
+export function textLines(source) {
+    const lines = [];
+    let gap = false;
+    String(source).split(/\r?\n/).forEach((raw) => {
+        const text = raw.trim();
+        if (!text) {
+            gap = lines.length > 0;
+            return;
+        }
+        lines.push({ text, gap });
+        gap = false;
+    });
+    return lines;
+}
+
+// Mirrors backend/audio/lyrics.py estimate(): untimed lines are spread over the
+// song by length, with extra room at blank lines.
+export function estimateRows(lines, duration) {
+    const lead = Math.min(MAX_LEAD, duration * LEAD_RATIO);
+    const span = Math.max(duration - lead - Math.min(MAX_LEAD, duration * TAIL_RATIO), duration * 0.5);
+    const weights = lines.map(({ text, gap }) => [
+        /^[\[(][^\]\d)][^\])]*[\])]$/.test(text) ? HEADER_WEIGHT : text.length + LINE_PAUSE,
+        gap ? STANZA_PAUSE : 0
+    ]);
+    const unit = span / weights.reduce((sum, [weight, pause]) => sum + weight + pause, 0);
+    const speed = Math.round(clamp(unit, MIN_SPEED, MAX_SPEED) * 1000) / 1000;
+    let clock = 0;
+    return lines.map(({ text }, index) => {
+        const [weight, pause] = weights[index];
+        clock += pause;
+        const row = [text, speed, Math.round((lead + clock * unit) * 1000) / 1000];
+        clock += weight;
+        return row;
+    });
+}
+
+export function fromText(source, { start = 0, gap = 4, duration = 0 } = {}) {
+    const lines = textLines(source);
+    if (duration > 0 && lines.length) return fromLyrica(estimateRows(lines, duration));
     let time = Number(start) || 0;
-    const entries = String(source)
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((text) => {
-            const entry = { text, start: time };
-            time += Math.max(gap, text.length * 0.12);
-            return entry;
-        });
+    const entries = lines.map(({ text }) => {
+        const entry = { text, start: time };
+        time += Math.max(gap, text.length * 0.12);
+        return entry;
+    });
     return normalizeLines(entries);
 }
 
-// Reads ["text", speed, delay] rows leniently: missing outer brackets, trailing
-// commas, rows on separate lines. Returns the rows, or null if it is not JSON rows.
-export function parseJsonRows(source) {
-    const body = String(source).trim();
-    if (!/^[\[{]/.test(body)) return null;
-    const glued = body.replace(/\]\s*,?\s*\[/g, '],[');
-    const candidates = [body];
-    for (const variant of [body, glued]) {
-        const trimmed = variant.replace(/,\s*$/, '');
-        candidates.push(`[${trimmed}]`, trimmed.replace(/,(\s*[\]}])/g, '$1'));
-    }
-    for (const candidate of candidates) {
-        let value;
-        try {
-            value = JSON.parse(candidate);
-        } catch {
-            continue;
-        }
+// Pulls ["text", speed, delay] rows out of JSON-ish text. Tolerates what
+// hand-written or Python-exported files contain: missing outer brackets, trailing
+// commas, rows without commas between them, single quotes, tuples, `lyrics = [...]`
+// assignments, comments, smart quotes, unescaped inner quotes and numbers like .6.
+// Mirrors backend/audio/lyrics.py so both sides read a file the same way.
+const NUMBER = '["\']?([-+]?(?:\\d+\\.?\\d*|\\.\\d+))["\']?';
+const ROW_PATTERN = `[\\[(]\\s*(?:"([^\\n]*?)"|'([^\\n]*?)')\\s*,\\s*${NUMBER}\\s*,\\s*${NUMBER}\\s*[\\])]`;
+
+function extractRows(source) {
+    const text = source.replace(/[\u201c\u201d]/g, '"');
+    return [...text.matchAll(new RegExp(ROW_PATTERN, 'g'))].map((match) => [
+        (match[1] ?? match[2]).replace(/\\(["'\\])/g, '$1').replace(/\\n/g, ' '),
+        Number(match[3]),
+        Number(match[4])
+    ]);
+}
+
+function strictRows(text) {
+    try {
+        let value = JSON.parse(text);
         if (value && !Array.isArray(value) && typeof value === 'object') value = value.lyrics ?? value.lines;
-        if (!Array.isArray(value)) continue;
-        if (value.length && !value.some((item) => item && typeof item === 'object')) value = [value];
-        if (value.every(Array.isArray)) return value;
+        if (Array.isArray(value) && value.length
+            && value.every((row) => Array.isArray(row) && typeof row[0] === 'string')) return value;
+    } catch {
+        // not standards-compliant JSON; fall through to the tolerant reader
     }
     return null;
+}
+
+export function parseJsonRows(source) {
+    const text = String(source).replace(/^\ufeff/, '').trim();
+    if (!text) return null;
+    const rows = (/^[\[{]/.test(text) ? strictRows(text) : null) || extractRows(text);
+    return rows.length ? rows : null;
 }
 
 export function detectFormat(source) {
@@ -134,7 +187,7 @@ export function detectFormat(source) {
     return 'canonical';
 }
 
-export function normalizeSource(source, format = 'auto') {
+export function normalizeSource(source, format = 'auto', { duration = 0 } = {}) {
     const resolved = format === 'auto' ? detectFormat(source) : format;
     switch (resolved) {
         case 'json':
@@ -144,7 +197,7 @@ export function normalizeSource(source, format = 'auto') {
         case 'lrc':
             return parseLRC(source);
         case 'text':
-            return fromText(source);
+            return fromText(source, { duration });
         case 'canonical':
         default:
             if (Array.isArray(source)) return normalizeLines(source);

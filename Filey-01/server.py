@@ -822,7 +822,7 @@ def get_lyrics(file_id):
     rows = audio.get_lyrics(file_id)
     if rows is None:
         return jsonify({'error': 'music file not found'}), 404
-    return jsonify({'lyrics': rows, 'format': 'text-speed-delay'})
+    return jsonify({'lyrics': rows, 'format': 'text-speed-delay', 'duration': audio.duration(file_id)})
 
 
 @app.put('/api/files/<file_id>/lyrics')
