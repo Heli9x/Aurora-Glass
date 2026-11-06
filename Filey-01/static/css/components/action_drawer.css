@@ -1,0 +1,72 @@
+.dialog.action-drawer {
+    width: min(100%, 560px);
+    max-height: min(82vh, 520px);
+    display: flex;
+    flex-direction: column;
+    padding: 28px;
+}
+
+.action-drawer h2 { margin-bottom: 16px; }
+
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.action-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 18px 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--soft);
+    color: var(--ink);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition: background .2s ease, color .2s ease, transform .2s ease, border-color .2s ease;
+}
+
+.action-icon {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: rgba(17, 17, 17, .9);
+    font-size: 22px;
+    transition: inherit;
+}
+
+.action-name {
+    max-width: 100%;
+    font-size: 0.95rem;
+}
+
+.action-tile:hover,
+.action-tile:focus-visible {
+    color: #111;
+    background: #fff;
+    transform: translateY(-2px);
+    outline: none;
+}
+
+.action-tile:hover .action-icon,
+.action-tile:focus-visible .action-icon { color: #fff; }
+
+.action-tile.danger-action:hover,
+.action-tile.danger-action:focus-visible {
+    color: #fff;
+    background: #8f3030;
+}
+
+@media (max-width: 480px) {
+    .dialog.action-drawer { padding: 22px 16px 16px; }
+    .action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

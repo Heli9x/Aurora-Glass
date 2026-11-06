@@ -1,0 +1,27 @@
+Given a directory of images, the gallery should dynamically fit every image into a defined boundary.
+Line of processing:
+    - Load the images
+    - Get their aspect ratios
+    - Calculate an appropriate height for each row
+    - Calculate each image's width from its aspect ratio
+    - Create the DOM
+    - Recalculate or use preset calculations when the container resizes
+
+First Step : Loading the images
+    - Create the collage class
+    - Rander the images to the collage container
+
+Implementation:
+    - Each image in this machine will be know by the following format:
+        - {<directory/url>, <alt_text>}
+        - a list of images will be passed at intialisation(to the constructor method).
+        - a render method will take each of the images and append them to the container.
+
+Every image seems to have its own resolution and aspect ratio.
+We need a common limit, width of every photo = height * aspect ratio.
+This will maintain their natural width while scaling down to fit desired orientations.
+
+With consideration of the gaping, each image will adapt to the max width ratio of the container.
+
+Second Step: Adaptive loading
+    - Implement a function that calculates the ratio for each image

@@ -85,7 +85,7 @@ class RenameDialog {
         let failed = false;
         if (id){
             try {
-                const response = await fetch(`${API_BASE}/files/${id}`, {
+                const response = await apiFetch(`${API_BASE}/files/${id}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name })

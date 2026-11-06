@@ -38,6 +38,7 @@ class Gallery {
 
         this.actions = document.createElement('div');
         this.actions.className = 'gallery-actions';
+        this.createFilter();
         this.createSort();
         this.createViewButton();
 
@@ -72,6 +73,56 @@ class Gallery {
         label.append(icon, select);
         this.sortSelect = select;
         this.actions.appendChild(label);
+    }
+
+    createFilter(){
+        const label = document.createElement('label');
+        label.className = 'sort-control filter-control';
+        label.htmlFor = 'filter-select';
+        label.hidden = true;
+
+        const icon = document.createElement('i');
+        icon.className = 'ri-filter-3-line';
+
+        const select = document.createElement('select');
+        select.id = 'filter-select';
+        select.setAttribute('aria-label', 'Filter music by tag');
+
+        label.append(icon, select);
+        this.filterLabel = label;
+        this.filterSelect = select;
+        this.setFilterOptions({}, '');
+        this.actions.appendChild(label);
+    }
+
+    // facets: { artist: [{value, count}], ... }; selected is "field=value" or ''.
+    setFilterOptions(facets, selected = ''){
+        const groups = [['artist', 'Artist'], ['album', 'Album'], ['genre', 'Genre'],
+                        ['theme', 'Theme'], ['year', 'Release year']];
+        const select = this.filterSelect;
+        select.replaceChildren(new Option('All tracks', ''));
+        for (const [field, title] of groups){
+            const items = Array.isArray(facets?.[field]) ? facets[field] : [];
+            if (!items.length) continue;
+            const group = document.createElement('optgroup');
+            group.label = title;
+            for (const item of items){
+                group.appendChild(new Option(`${item.value} (${item.count})`, `${field}=${item.value}`));
+            }
+            select.appendChild(group);
+        }
+        if (selected && ![...select.options].some((o) => o.value === selected)){
+            select.appendChild(new Option(selected.split('=').slice(1).join('='), selected));
+        }
+        select.value = selected;
+    }
+
+    setFilterVisible(visible){
+        this.filterLabel.hidden = !visible;
+    }
+
+    setFilterHandler(fn){
+        this.filterSelect.addEventListener('change', (e) => fn(e.target.value));
     }
 
     createViewButton(){

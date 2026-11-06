@@ -42,6 +42,11 @@ class Modal {
         if (typeof this.onClose === 'function') this.onClose();
     }
 
+    // Hides the dialog without running onClose, so playback can continue.
+    minimize(){
+        this.backdrop.hidden = true;
+    }
+
     isOpen(){
         return !this.backdrop.hidden;
     }
